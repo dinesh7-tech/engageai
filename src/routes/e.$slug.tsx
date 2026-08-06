@@ -47,12 +47,12 @@ function PublicEventLanding() {
     setLoading(true);
     setError(null);
 
-    supabase
+    (supabase as any)
       .from("events")
       .select("*")
       .eq("slug", slug)
       .maybeSingle()
-      .then(async ({ data: eventData, error: eventErr }) => {
+      .then(async ({ data: eventData, error: eventErr }: any) => {
         if (eventErr) {
           console.error("Supabase event load error:", eventErr);
           setError(eventErr.message);
@@ -68,7 +68,7 @@ function PublicEventLanding() {
         setEvent(eventData);
 
         // Fetch form fields
-        const { data: fieldsData } = await supabase
+        const { data: fieldsData } = await (supabase as any)
           .from("event_form_fields")
           .select("*")
           .eq("event_id", eventData.id)
@@ -77,7 +77,7 @@ function PublicEventLanding() {
         setFields(fieldsData || []);
 
         // Fetch ticket tiers
-        const { data: ticketsData } = await supabase
+        const { data: ticketsData } = await (supabase as any)
           .from("event_tickets")
           .select("*")
           .eq("event_id", eventData.id);
@@ -110,7 +110,7 @@ function PublicEventLanding() {
 
         setLoading(false);
       })
-      .catch((err) => {
+      .catch((err: any) => {
         console.error("Fetch exception:", err);
         setError(err.message || "Failed to load event.");
         setLoading(false);
@@ -172,6 +172,9 @@ function PublicEventLanding() {
       const primaryEmail = formValues["email"] || formValues["Email"] || "";
       const primaryPhone = formValues["phone"] || formValues["Phone"] || formValues["mobile"] || "";
 
+      // Capture device info
+      const deviceInfo = typeof navigator !== "undefined" ? navigator.userAgent : "unknown";
+
       // Call register server function
       const reg = await registerAttendee({
         data: {
@@ -181,7 +184,8 @@ function PublicEventLanding() {
           email: primaryEmail,
           phone: primaryPhone,
           ticketTypeId: selectedTicketType || null,
-          formResponses: formValues
+          formResponses: formValues,
+          deviceInfo
         }
       });
 
@@ -198,7 +202,7 @@ function PublicEventLanding() {
         }
       });
 
-      toast.success("Successfully registered for event!");
+      toast.success("Registration submitted! Awaiting organizer approval.");
       navigate({ to: `/ticket/${reg.ticket_token}` });
     } catch (err: any) {
       toast.error(err.message || "Registration failed");

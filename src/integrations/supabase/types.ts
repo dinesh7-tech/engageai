@@ -191,6 +191,17 @@ export type Database = {
           checked_in: boolean
           checked_in_at: string | null
           created_at: string
+          ticket_token: string | null
+          ticket_type_id: string | null
+          form_responses: Json
+          payment_status: string | null
+          payment_details: Json
+          status: string
+          rejection_reason: string | null
+          notes: string | null
+          ip_address: string | null
+          device: string | null
+          activity_history: Json
         }
         Insert: {
           id?: string
@@ -202,6 +213,17 @@ export type Database = {
           checked_in?: boolean
           checked_in_at?: string | null
           created_at?: string
+          ticket_token?: string | null
+          ticket_type_id?: string | null
+          form_responses?: Json
+          payment_status?: string | null
+          payment_details?: Json
+          status?: string
+          rejection_reason?: string | null
+          notes?: string | null
+          ip_address?: string | null
+          device?: string | null
+          activity_history?: Json
         }
         Update: {
           id?: string
@@ -213,6 +235,17 @@ export type Database = {
           checked_in?: boolean
           checked_in_at?: string | null
           created_at?: string
+          ticket_token?: string | null
+          ticket_type_id?: string | null
+          form_responses?: Json
+          payment_status?: string | null
+          payment_details?: Json
+          status?: string
+          rejection_reason?: string | null
+          notes?: string | null
+          ip_address?: string | null
+          device?: string | null
+          activity_history?: Json
         }
         Relationships: []
       }

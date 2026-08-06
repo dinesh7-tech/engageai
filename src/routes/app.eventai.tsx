@@ -54,6 +54,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { createEvent, publishEvent, checkInAttendee, fetchEventAnalytics, registerAttendee, deleteEvent, duplicateEvent, updateEventDetails } from "@/lib/event.functions";
 import { builtInCategories, type CategoryPreset, type TemplatePreset } from "@/lib/event-templates";
 import { emitActivity } from "@/lib/realtime.functions";
+import { EventAttendeesTab } from "@/components/app/EventAttendeesTab";
 import { 
   ResponsiveContainer, 
   BarChart, 
@@ -157,7 +158,7 @@ function EventAIPage() {
   // 1. Fetch Categories & Events
   const fetchCustomCategories = async () => {
     if (!workspaceId) return;
-    const { data } = await supabase
+    const { data } = await (supabase as any)
       .from("event_categories")
       .select("*")
       .eq("workspace_id", workspaceId);
@@ -195,7 +196,7 @@ function EventAIPage() {
     if (!activeEvent) return;
 
     // Fetch form fields
-    const { data: fields } = await supabase
+    const { data: fields } = await (supabase as any)
       .from("event_form_fields")
       .select("*")
       .eq("event_id", activeEvent.id)
@@ -203,7 +204,7 @@ function EventAIPage() {
     setFormFields(fields || []);
 
     // Fetch ticket tiers
-    const { data: tickets } = await supabase
+    const { data: tickets } = await (supabase as any)
       .from("event_tickets")
       .select("*")
       .eq("event_id", activeEvent.id);
@@ -344,7 +345,7 @@ function EventAIPage() {
           workspaceId,
           name: eventName.trim(),
           venue: eventVenue || "To be announced",
-          date: eventDate || null,
+          date: eventDate || undefined,
           categoryId: null, // Scoped custom reference if any
           subcategory: selectedTemplate?.name || "Custom Event",
           registrationType: regType,
@@ -378,7 +379,7 @@ function EventAIPage() {
   const handleCreateCustomCategory = async () => {
     if (!catName.trim() || !workspaceId) return;
 
-    const { error } = await supabase.from("event_categories").insert({
+    const { error } = await (supabase as any).from("event_categories").insert({
       workspace_id: workspaceId,
       name: catName.trim(),
       description: catDesc.trim(),
@@ -531,7 +532,7 @@ function EventAIPage() {
           workspaceId: workspaceId!,
           name: editName.trim(),
           venue: editVenue,
-          date: editDate || undefined,
+          date: editDate || "",
           registrationType: editRegType,
           capacityLimit: editRegType === "capacity" ? editCapLimit : null,
           approvalMode: editApprovalMode,
@@ -701,7 +702,7 @@ function EventAIPage() {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between border-b pb-2">
                       <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">2. Choose Template</Label>
-                      <Button variant="ghost" size="xs" onClick={() => setWizardStep("category")}>← Back</Button>
+                      <Button variant="ghost" size="sm" onClick={() => setWizardStep("category")}>← Back</Button>
                     </div>
                     {selectedCat?.subcategories.length === 0 ? (
                       <div className="p-8 text-center text-xs text-muted-foreground panel">
@@ -734,7 +735,7 @@ function EventAIPage() {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between border-b pb-2">
                       <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">3. Customise Event Fields</Label>
-                      <Button variant="ghost" size="xs" onClick={() => setWizardStep("template")}>← Back</Button>
+                      <Button variant="ghost" size="sm" onClick={() => setWizardStep("template")}>← Back</Button>
                     </div>
                     <div className="space-y-3">
                       <div className="space-y-1">
@@ -932,12 +933,12 @@ function EventAIPage() {
               subtitle={`${activeEvent?.venue || ""} · ${activeEvent?.status || ""}`}
               actions={
                 <div className="flex items-center gap-2">
-                  <Button size="xs" variant="outline" onClick={copyLandingLink} className="gap-1">
+                  <Button size="sm" variant="outline" onClick={copyLandingLink} className="gap-1">
                     <Copy className="size-3.5" /> Public URL
                   </Button>
                   <Dialog open={regOpen} onOpenChange={setRegOpen}>
                     <DialogTrigger asChild>
-                      <Button size="xs" variant="outline" className="gap-1">
+                      <Button size="sm" variant="outline" className="gap-1">
                         <Plus className="size-3.5" /> Register Attendee
                       </Button>
                     </DialogTrigger>
@@ -992,7 +993,7 @@ function EventAIPage() {
             >
               <Tabs defaultValue="overview">
                 <TabsList className="w-full flex justify-start overflow-x-auto h-auto p-1 bg-secondary/40 border rounded-lg gap-1">
-                  {["Overview", "Registrations", "Landing Page", "Automation", "Messages", "Settings", "Analytics"].map(tab => (
+                  {["Overview", "Attendees", "Registrations", "Landing Page", "Automation", "Messages", "Settings", "Analytics"].map(tab => (
                     <TabsTrigger key={tab} value={tab.toLowerCase().replace(" ", "-")} className="text-xs py-1.5 px-3">
                       {tab}
                     </TabsTrigger>
@@ -1079,6 +1080,16 @@ function EventAIPage() {
                   )}
                 </TabsContent>
 
+                {/* TAB: Attendees (Full Approval & Management) */}
+                <TabsContent value="attendees" className="mt-4">
+                  <EventAttendeesTab
+                    activeEvent={activeEvent}
+                    attendees={attendees}
+                    ticketTiers={ticketTiers}
+                    onRefresh={fetchActiveEventDetails}
+                  />
+                </TabsContent>
+
                 {/* TAB: Landing Page builder */}
                 <TabsContent value="landing-page" className="mt-4 space-y-4">
                   <div className="panel p-5 bg-secondary/20 rounded-xl space-y-4">
@@ -1094,7 +1105,7 @@ function EventAIPage() {
                                 if (!activeEvent?.id) return;
                                 const list = activeEvent.landing_page_sections || [];
                                 const nextList = isEnabled ? list.filter((l: string) => l !== sec) : [...list, sec];
-                                await supabase.from("events").update({ landing_page_sections: nextList }).eq("id", activeEvent.id);
+                                await (supabase as any).from("events").update({ landing_page_sections: nextList }).eq("id", activeEvent.id);
                                 toast.success(`Section ${sec} updated!`);
                                 fetchEvents();
                               }}
@@ -1118,7 +1129,7 @@ function EventAIPage() {
                           value={activeEvent?.theme || "Professional"} 
                           onChange={async (e) => {
                             if (!activeEvent?.id) return;
-                            await supabase.from("events").update({ theme: e.target.value }).eq("id", activeEvent.id);
+                            await (supabase as any).from("events").update({ theme: e.target.value }).eq("id", activeEvent.id);
                             toast.success("Theme changed!");
                             fetchEvents();
                           }}

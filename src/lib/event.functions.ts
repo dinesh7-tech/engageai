@@ -161,6 +161,9 @@ export interface RegisterAttendeeInput {
   formResponses?: Record<string, any>;
   paymentStatus?: "free" | "pending" | "paid";
   paymentDetails?: any;
+  status?: string;
+  ipAddress?: string | null;
+  deviceInfo?: string | null;
 }
 
 export const registerAttendee = createServerFn({ method: "POST" })
@@ -205,7 +208,17 @@ export const registerAttendee = createServerFn({ method: "POST" })
         form_responses: data.formResponses || {},
         payment_status: data.paymentStatus || "free",
         payment_details: data.paymentDetails || {},
-        checked_in: false
+        checked_in: false,
+        status: data.status || "Pending",
+        ip_address: data.ipAddress || null,
+        device: data.deviceInfo || null,
+        activity_history: [
+          {
+            activity: "Registered",
+            timestamp: new Date().toISOString(),
+            details: "Registration submitted online."
+          }
+        ]
       })
       .select()
       .single();
@@ -241,10 +254,32 @@ export const checkInAttendee = createServerFn({ method: "POST" })
     }
     const supabaseAdmin = await getAdminClient();
 
-    // 1. Update registration checked_in status
+    // Fetch existing history to append
+    const { data: reg } = await supabaseAdmin
+      .from("event_registrations")
+      .select("activity_history")
+      .eq("id", data.registrationId)
+      .single();
+
+    const currentHistory = Array.isArray(reg?.activity_history) ? reg.activity_history : [];
+    const nextHistory = [
+      ...currentHistory,
+      {
+        activity: "Checked In",
+        timestamp: new Date().toISOString(),
+        details: "Attendee checked in at venue."
+      }
+    ];
+
+    // 1. Update registration checked_in status and status field
     const { error: regErr } = await supabaseAdmin
       .from("event_registrations")
-      .update({ checked_in: true, checked_in_at: new Date().toISOString() })
+      .update({ 
+        checked_in: true, 
+        checked_in_at: new Date().toISOString(),
+        status: "Checked-in",
+        activity_history: nextHistory
+      })
       .eq("id", data.registrationId)
       .eq("event_id", data.eventId);
 
@@ -312,17 +347,17 @@ export const fetchEventAnalytics = createServerFn({ method: "GET" })
       .eq("event_id", data.eventId)
       .eq("workspace_id", data.workspaceId);
 
-    const logs = views || [];
-    const totalViews = logs.filter(l => l.action_type === "view").length;
-    const totalQRScans = logs.filter(l => l.action_type === "qr_scan").length;
-    const totalRegs = logs.filter(l => l.action_type === "registration").length;
+    const logs: any[] = views || [];
+    const totalViews = logs.filter((l: any) => l.action_type === "view").length;
+    const totalQRScans = logs.filter((l: any) => l.action_type === "qr_scan").length;
+    const totalRegs = logs.filter((l: any) => l.action_type === "registration").length;
 
     // Traffic sources breakdown
     const sources: Record<string, number> = {};
     // Device types breakdown
     const devices: Record<string, number> = {};
 
-    logs.forEach(l => {
+    logs.forEach((l: any) => {
       if (l.action_type === "view") {
         sources[l.traffic_source] = (sources[l.traffic_source] || 0) + 1;
         devices[l.device_type] = (devices[l.device_type] || 0) + 1;
@@ -490,3 +525,526 @@ export const updateEventDetails = createServerFn({ method: "POST" })
     }
     return event;
   });
+
+export const approveRegistration = createServerFn({ method: "POST" })
+  .inputValidator((input: { registrationId: string; eventId: string; workspaceId: string }) => input)
+  .handler(async ({ data }) => {
+    if (!data || !data.workspaceId) {
+      throw new Error("Approval failed: A valid workspace ID is required.");
+    }
+    const supabaseAdmin = await getAdminClient();
+
+    // Fetch registration details
+    const { data: reg, error: fetchErr } = await supabaseAdmin
+      .from("event_registrations")
+      .select("*, events(name, date, venue)")
+      .eq("id", data.registrationId)
+      .single();
+
+    if (fetchErr || !reg) {
+      throw new Error(`Failed to load registration details: ${fetchErr?.message || "Not found"}`);
+    }
+
+    const currentHistory = Array.isArray(reg.activity_history) ? reg.activity_history : [];
+    const nextHistory = [
+      ...currentHistory,
+      {
+        activity: "Approved",
+        timestamp: new Date().toISOString(),
+        details: "Registration approved by organizer."
+      }
+    ];
+
+    // Update status
+    const { error: updateErr } = await supabaseAdmin
+      .from("event_registrations")
+      .update({
+        status: "Approved",
+        activity_history: nextHistory
+      })
+      .eq("id", data.registrationId);
+
+    if (updateErr) {
+      throw new Error(`Failed to update approval status: ${updateErr.message}`);
+    }
+
+    // Trigger WhatsApp Automations if phone number is provided
+    if (reg.phone) {
+      try {
+        const eventName = reg.events?.name || "Event";
+        const eventDate = reg.events?.date 
+          ? new Date(reg.events.date).toLocaleString() 
+          : "TBD";
+        const eventVenue = reg.events?.venue || "TBD";
+        
+        const ticketLink = typeof window !== "undefined" 
+          ? `${window.location.origin}/ticket/${reg.ticket_token}` 
+          : `https://engageai-gold.vercel.app/ticket/${reg.ticket_token}`;
+
+        const { dispatchWhatsApp } = await import("./whatsapp-client");
+        await dispatchWhatsApp({
+          to: reg.phone,
+          recipient: reg.name,
+          templateId: "event_registration",
+          variables: {
+            name: reg.name,
+            event: eventName,
+            date: eventDate,
+            venue: eventVenue,
+            link: ticketLink
+          },
+          workspaceId: data.workspaceId,
+          notify: false
+        });
+
+        // Add "WhatsApp Sent" to timeline
+        const updatedHistory = [
+          ...nextHistory,
+          {
+            activity: "WhatsApp Sent",
+            timestamp: new Date().toISOString(),
+            details: `WhatsApp confirmation dispatched to ${reg.phone}`
+          }
+        ];
+        await supabaseAdmin
+          .from("event_registrations")
+          .update({ activity_history: updatedHistory })
+          .eq("id", data.registrationId);
+
+      } catch (err: any) {
+        console.error("Failed to send WhatsApp automation on approval:", err);
+      }
+    }
+
+    // Add Email Sent timeline log (simulated)
+    try {
+      const { data: latestReg } = await supabaseAdmin
+        .from("event_registrations")
+        .select("activity_history")
+        .eq("id", data.registrationId)
+        .single();
+      const latestHistory = Array.isArray(latestReg?.activity_history) ? latestReg.activity_history : nextHistory;
+      
+      const emailHistory = [
+        ...latestHistory,
+        {
+          activity: "Email Sent",
+          timestamp: new Date().toISOString(),
+          details: `Email confirmation simulated to ${reg.email || "attendee"}`
+        },
+        {
+          activity: "QR Generated",
+          timestamp: new Date().toISOString(),
+          details: `Check-in QR ticket generated: ${reg.ticket_token}`
+        }
+      ];
+      await supabaseAdmin
+        .from("event_registrations")
+        .update({ activity_history: emailHistory })
+        .eq("id", data.registrationId);
+    } catch (e) {
+      console.error("Timeline update failed:", e);
+    }
+
+    return { success: true };
+  });
+
+export const rejectRegistration = createServerFn({ method: "POST" })
+  .inputValidator((input: { registrationId: string; eventId: string; workspaceId: string; reason?: string }) => input)
+  .handler(async ({ data }) => {
+    if (!data || !data.workspaceId) {
+      throw new Error("Rejection failed: A valid workspace ID is required.");
+    }
+    const supabaseAdmin = await getAdminClient();
+
+    const { data: reg } = await supabaseAdmin
+      .from("event_registrations")
+      .select("activity_history, email, phone, name")
+      .eq("id", data.registrationId)
+      .single();
+
+    const currentHistory = Array.isArray(reg?.activity_history) ? reg.activity_history : [];
+    const nextHistory = [
+      ...currentHistory,
+      {
+        activity: "Rejected",
+        timestamp: new Date().toISOString(),
+        details: data.reason ? `Rejection reason: ${data.reason}` : "Rejected by organizer."
+      }
+    ];
+
+    const { error } = await supabaseAdmin
+      .from("event_registrations")
+      .update({
+        status: "Rejected",
+        rejection_reason: data.reason || null,
+        activity_history: nextHistory
+      })
+      .eq("id", data.registrationId);
+
+    if (error) {
+      throw new Error(`Failed to update rejection status: ${error.message}`);
+    }
+
+    // Simulate rejection alert dispatch (WhatsApp/Email)
+    if (reg?.phone || reg?.email) {
+      try {
+        const contact = reg.phone || reg.email || "attendee";
+        const emailHistory = [
+          ...nextHistory,
+          {
+            activity: "Rejection Notification Sent",
+            timestamp: new Date().toISOString(),
+            details: `Rejection email/WhatsApp simulated to ${contact}`
+          }
+        ];
+        await supabaseAdmin
+          .from("event_registrations")
+          .update({ activity_history: emailHistory })
+          .eq("id", data.registrationId);
+      } catch (e) {
+        console.error("Timeline reject update failed:", e);
+      }
+    }
+
+    return { success: true };
+  });
+
+export const deleteRegistration = createServerFn({ method: "POST" })
+  .inputValidator((input: { registrationId: string; eventId: string; workspaceId: string }) => input)
+  .handler(async ({ data }) => {
+    if (!data || !data.workspaceId) {
+      throw new Error("Delete failed: A valid workspace ID is required.");
+    }
+    const supabaseAdmin = await getAdminClient();
+    const { error } = await supabaseAdmin
+      .from("event_registrations")
+      .delete()
+      .eq("id", data.registrationId)
+      .eq("workspace_id", data.workspaceId);
+
+    if (error) {
+      throw new Error(`Delete failed: ${error.message}`);
+    }
+    return { success: true };
+  });
+
+export const updateRegistrationNotes = createServerFn({ method: "POST" })
+  .inputValidator((input: { registrationId: string; eventId: string; workspaceId: string; notes: string }) => input)
+  .handler(async ({ data }) => {
+    if (!data || !data.workspaceId) {
+      throw new Error("Update notes failed: A valid workspace ID is required.");
+    }
+    const supabaseAdmin = await getAdminClient();
+    
+    const { data: reg } = await supabaseAdmin
+      .from("event_registrations")
+      .select("activity_history")
+      .eq("id", data.registrationId)
+      .single();
+
+    const currentHistory = Array.isArray(reg?.activity_history) ? reg.activity_history : [];
+    const nextHistory = [
+      ...currentHistory,
+      {
+        activity: "Notes Updated",
+        timestamp: new Date().toISOString(),
+        details: "Internal notes modified."
+      }
+    ];
+
+    const { error } = await supabaseAdmin
+      .from("event_registrations")
+      .update({
+        notes: data.notes,
+        activity_history: nextHistory
+      })
+      .eq("id", data.registrationId);
+
+    if (error) {
+      throw new Error(`Failed to update internal notes: ${error.message}`);
+    }
+    return { success: true };
+  });
+
+export const updateRegistrationDetails = createServerFn({ method: "POST" })
+  .inputValidator((input: { registrationId: string; eventId: string; workspaceId: string; name: string; email?: string | null; phone?: string | null; ticketTypeId?: string | null; formResponses?: any }) => input)
+  .handler(async ({ data }) => {
+    if (!data || !data.workspaceId) {
+      throw new Error("Update details failed: A valid workspace ID is required.");
+    }
+    const supabaseAdmin = await getAdminClient();
+    
+    const { data: reg } = await supabaseAdmin
+      .from("event_registrations")
+      .select("activity_history")
+      .eq("id", data.registrationId)
+      .single();
+
+    const currentHistory = Array.isArray(reg?.activity_history) ? reg.activity_history : [];
+    const nextHistory = [
+      ...currentHistory,
+      {
+        activity: "Details Edited",
+        timestamp: new Date().toISOString(),
+        details: "Contact information updated by manager."
+      }
+    ];
+
+    const updatePayload: any = {
+      name: data.name,
+      email: data.email || null,
+      phone: data.phone || null,
+      activity_history: nextHistory
+    };
+
+    if (data.ticketTypeId !== undefined) {
+      updatePayload.ticket_type_id = data.ticketTypeId;
+    }
+    if (data.formResponses !== undefined) {
+      updatePayload.form_responses = data.formResponses;
+    }
+
+    const { error } = await supabaseAdmin
+      .from("event_registrations")
+      .update(updatePayload)
+      .eq("id", data.registrationId);
+
+    if (error) {
+      throw new Error(`Failed to update registration details: ${error.message}`);
+    }
+    return { success: true };
+  });
+
+export const bulkApproveRegistrations = createServerFn({ method: "POST" })
+  .inputValidator((input: { registrationIds: string[]; eventId: string; workspaceId: string }) => input)
+  .handler(async ({ data }) => {
+    if (!data || !data.workspaceId) {
+      throw new Error("Bulk approval failed: A valid workspace ID is required.");
+    }
+    
+    for (const regId of data.registrationIds) {
+      await approveRegistration({
+        data: {
+          registrationId: regId,
+          eventId: data.eventId,
+          workspaceId: data.workspaceId
+        }
+      });
+    }
+
+    return { success: true };
+  });
+
+export const bulkRejectRegistrations = createServerFn({ method: "POST" })
+  .inputValidator((input: { registrationIds: string[]; eventId: string; workspaceId: string; reason?: string }) => input)
+  .handler(async ({ data }) => {
+    if (!data || !data.workspaceId) {
+      throw new Error("Bulk rejection failed: A valid workspace ID is required.");
+    }
+    
+    for (const regId of data.registrationIds) {
+      await rejectRegistration({
+        data: {
+          registrationId: regId,
+          eventId: data.eventId,
+          workspaceId: data.workspaceId,
+          reason: data.reason || ""
+        }
+      });
+    }
+
+    return { success: true };
+  });
+
+export const bulkDeleteRegistrations = createServerFn({ method: "POST" })
+  .inputValidator((input: { registrationIds: string[]; eventId: string; workspaceId: string }) => input)
+  .handler(async ({ data }) => {
+    if (!data || !data.workspaceId) {
+      throw new Error("Bulk deletion failed: A valid workspace ID is required.");
+    }
+    const supabaseAdmin = await getAdminClient();
+    const { error } = await supabaseAdmin
+      .from("event_registrations")
+      .delete()
+      .in("id", data.registrationIds)
+      .eq("workspace_id", data.workspaceId);
+
+    if (error) {
+      throw new Error(`Bulk delete failed: ${error.message}`);
+    }
+    return { success: true };
+  });
+
+export const getRegistrationByToken = createServerFn({ method: "GET" })
+  .inputValidator((input: { token: string }) => input)
+  .handler(async ({ data }) => {
+    const supabaseAdmin = await getAdminClient();
+    const { data: reg, error } = await supabaseAdmin
+      .from("event_registrations")
+      .select("*")
+      .eq("ticket_token", data.token)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to retrieve registration: ${error.message}`);
+    }
+    return reg;
+  });
+
+export const updateRegistrationByToken = createServerFn({ method: "POST" })
+  .inputValidator((input: { token: string; name: string; email?: string | null; phone?: string | null }) => input)
+  .handler(async ({ data }) => {
+    const supabaseAdmin = await getAdminClient();
+    
+    const { data: reg } = await supabaseAdmin
+      .from("event_registrations")
+      .select("id, activity_history")
+      .eq("ticket_token", data.token)
+      .single();
+
+    if (!reg) {
+      throw new Error("Ticket not found.");
+    }
+
+    const currentHistory = Array.isArray(reg.activity_history) ? reg.activity_history : [];
+    const nextHistory = [
+      ...currentHistory,
+      {
+        activity: "Details Updated",
+        timestamp: new Date().toISOString(),
+        details: "Contact details updated online by ticket holder."
+      }
+    ];
+
+    const { data: updated, error } = await supabaseAdmin
+      .from("event_registrations")
+      .update({
+        name: data.name,
+        email: data.email || null,
+        phone: data.phone || null,
+        activity_history: nextHistory
+      })
+      .eq("id", reg.id)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to update ticket: ${error.message}`);
+    }
+    return updated;
+  });
+
+export const cancelRegistrationByToken = createServerFn({ method: "POST" })
+  .inputValidator((input: { token: string }) => input)
+  .handler(async ({ data }) => {
+    const supabaseAdmin = await getAdminClient();
+    
+    const { data: reg } = await supabaseAdmin
+      .from("event_registrations")
+      .select("id")
+      .eq("ticket_token", data.token)
+      .single();
+
+    if (!reg) {
+      throw new Error("Ticket not found.");
+    }
+
+    const { error } = await supabaseAdmin
+      .from("event_registrations")
+      .delete()
+      .eq("id", reg.id);
+
+    if (error) {
+      throw new Error(`Cancellation failed: ${error.message}`);
+    }
+    return { success: true };
+  });
+
+export const checkInAttendeeByQR = createServerFn({ method: "POST" })
+  .inputValidator((input: { qrPayload: string; eventId: string; workspaceId: string; operatorId?: string }) => input)
+  .handler(async ({ data }) => {
+    if (!data || !data.workspaceId) {
+      throw new Error("Check-in failed: A valid workspace ID is required.");
+    }
+    const supabaseAdmin = await getAdminClient();
+
+    let payload: any = null;
+    let ticketToken = data.qrPayload;
+
+    try {
+      if (data.qrPayload.startsWith("{")) {
+        payload = JSON.parse(data.qrPayload);
+        if (payload.token) ticketToken = payload.token;
+      }
+    } catch (e) {
+      // Direct token fallback
+    }
+
+    // Lookup registration
+    let query = supabaseAdmin
+      .from("event_registrations")
+      .select("*, events(name)")
+      .eq("event_id", data.eventId);
+
+    if (payload && payload.registration_id) {
+      query = query.eq("id", payload.registration_id);
+    } else {
+      query = query.eq("ticket_token", ticketToken);
+    }
+
+    const { data: reg, error: fetchErr } = await query.maybeSingle();
+
+    if (fetchErr || !reg) {
+      throw new Error("Invalid or unverified ticket QR code.");
+    }
+
+    if (reg.status === "Pending") {
+      throw new Error("This registration is pending approval and cannot be used for check-in.");
+    }
+
+    if (reg.status === "Rejected") {
+      throw new Error("This registration has been rejected and disabled.");
+    }
+
+    if (reg.checked_in || reg.status === "Checked-in") {
+      return { success: true, alreadyCheckedIn: true, attendee: reg };
+    }
+
+    // Perform check in
+    const currentHistory = Array.isArray(reg.activity_history) ? reg.activity_history : [];
+    const nextHistory = [
+      ...currentHistory,
+      {
+        activity: "Checked In via QR",
+        timestamp: new Date().toISOString(),
+        details: "Scanned & verified at entrance."
+      }
+    ];
+
+    const { error: updateErr } = await supabaseAdmin
+      .from("event_registrations")
+      .update({
+        checked_in: true,
+        checked_in_at: new Date().toISOString(),
+        status: "Checked-in",
+        activity_history: nextHistory
+      })
+      .eq("id", reg.id);
+
+    if (updateErr) {
+      throw new Error(`Check-in update failed: ${updateErr.message}`);
+    }
+
+    await supabaseAdmin
+      .from("event_checkins")
+      .insert({
+        workspace_id: data.workspaceId,
+        event_id: data.eventId,
+        registration_id: reg.id,
+        scanned_by: data.operatorId || null
+      });
+
+    return { success: true, alreadyCheckedIn: false, attendee: reg };
+  });
+
