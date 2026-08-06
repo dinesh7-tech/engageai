@@ -97,13 +97,15 @@ function PublicEventLanding() {
         else if (userAgent.includes("Firefox")) browserName = "Firefox";
 
         await logEventAnalytics({
-          eventId: eventData.id,
-          workspaceId: eventData.workspace_id,
-          actionType: "view",
-          trafficSource: referrer,
-          deviceType: isMobile,
-          browser: browserName,
-          country: "IN" // Default
+          data: {
+            eventId: eventData.id,
+            workspaceId: eventData.workspace_id,
+            actionType: "view",
+            trafficSource: referrer,
+            deviceType: isMobile,
+            browser: browserName,
+            country: "IN"
+          }
         });
 
         setLoading(false);
@@ -172,24 +174,28 @@ function PublicEventLanding() {
 
       // Call register server function
       const reg = await registerAttendee({
-        eventId: event.id,
-        workspaceId: event.workspace_id,
-        name: primaryName,
-        email: primaryEmail,
-        phone: primaryPhone,
-        ticketTypeId: selectedTicketType || null,
-        formResponses: formValues
+        data: {
+          eventId: event.id,
+          workspaceId: event.workspace_id,
+          name: primaryName,
+          email: primaryEmail,
+          phone: primaryPhone,
+          ticketTypeId: selectedTicketType || null,
+          formResponses: formValues
+        }
       });
 
       // Log analytical registration
       const referrer = search.ref || search.src || "direct";
       const isMobile = typeof window !== "undefined" && window.innerWidth < 768 ? "mobile" : "desktop";
       await logEventAnalytics({
-        eventId: event.id,
-        workspaceId: event.workspace_id,
-        actionType: "registration",
-        trafficSource: referrer,
-        deviceType: isMobile
+        data: {
+          eventId: event.id,
+          workspaceId: event.workspace_id,
+          actionType: "registration",
+          trafficSource: referrer,
+          deviceType: isMobile
+        }
       });
 
       toast.success("Successfully registered for event!");

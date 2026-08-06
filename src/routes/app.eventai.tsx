@@ -193,7 +193,7 @@ function EventAIPage() {
 
     // Fetch analytics using server function
     try {
-      const res = await fetchEventAnalytics({ eventId: activeEvent.id, workspaceId: activeEvent.workspace_id });
+      const res = await fetchEventAnalytics({ data: { eventId: activeEvent.id, workspaceId: activeEvent.workspace_id } });
       setAnalytics(res);
     } catch (err) {
       console.error("Analytics fetch failed:", err);
@@ -299,19 +299,21 @@ function EventAIPage() {
       ];
 
       const ev = await createEvent({
-        workspaceId,
-        name: eventName.trim(),
-        venue: eventVenue || "Grand Hall Ballroom",
-        date: eventDate,
-        categoryId: null, // Scoped custom reference if any
-        subcategory: selectedTemplate?.name || "Custom Event",
-        registrationType: regType,
-        capacityLimit: regType === "capacity" ? capLimit : null,
-        approvalMode,
-        theme: eventTheme,
-        landingPageSections: selectedTemplate?.default_landing_page?.sections || ["Banner", "About", "Registration"],
-        defaultFields,
-        defaultTickets
+        data: {
+          workspaceId,
+          name: eventName.trim(),
+          venue: eventVenue || "Grand Hall Ballroom",
+          date: eventDate,
+          categoryId: null, // Scoped custom reference if any
+          subcategory: selectedTemplate?.name || "Custom Event",
+          registrationType: regType,
+          capacityLimit: regType === "capacity" ? capLimit : null,
+          approvalMode,
+          theme: eventTheme,
+          landingPageSections: selectedTemplate?.default_landing_page?.sections || ["Banner", "About", "Registration"],
+          defaultFields,
+          defaultTickets
+        }
       });
 
       toast.success(`Event "${ev.name}" created in draft status.`);
@@ -361,7 +363,7 @@ function EventAIPage() {
   const handleStatusChange = async (status: string) => {
     if (!activeEvent || !workspaceId) return;
     try {
-      await publishEvent({ eventId: activeEvent.id, workspaceId, status });
+      await publishEvent({ data: { eventId: activeEvent.id, workspaceId, status } });
       toast.success(`Event status changed to ${status}`);
       fetchEvents();
     } catch (err: any) {
@@ -374,9 +376,11 @@ function EventAIPage() {
     if (!activeEvent) return;
     try {
       await checkInAttendee({
-        registrationId: regId,
-        eventId: activeEvent.id,
-        workspaceId: activeEvent.workspace_id
+        data: {
+          registrationId: regId,
+          eventId: activeEvent.id,
+          workspaceId: activeEvent.workspace_id
+        }
       });
       toast.success(`${name} checked in successfully!`);
       fetchActiveEventDetails();
@@ -728,11 +732,13 @@ function EventAIPage() {
                           }
                           try {
                             await registerAttendee({
-                              eventId: activeEvent.id,
-                              workspaceId: activeEvent.workspace_id,
-                              name: regName.trim(),
-                              email: regEmail || null,
-                              phone: regPhone || null
+                              data: {
+                                eventId: activeEvent.id,
+                                workspaceId: activeEvent.workspace_id,
+                                name: regName.trim(),
+                                email: regEmail || null,
+                                phone: regPhone || null
+                              }
                             });
                             toast.success("Attendee registered successfully!");
                             setRegOpen(false);
