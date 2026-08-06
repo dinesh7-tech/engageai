@@ -546,7 +546,15 @@ END:VCALENDAR`;
                       
                       <div className="relative z-10 bg-white rounded-xl p-1 flex flex-col items-center">
                         <QRCodeSVG
-                          value={qrEncryptedPayload}
+                          value={JSON.stringify({
+                            registrationId: registration.id,
+                            attendeeId: registration.id,
+                            eventId: registration.event_id,
+                            ticketId: registration.ticket_type_id || "general",
+                            token: registration.ticket_token,
+                            issuedAt: registration.created_at,
+                            checksum: btoa(`${registration.id}:${registration.event_id}:${registration.ticket_token}`).slice(0, 12)
+                          })}
                           size={170}
                           level="H"
                           includeMargin={true}

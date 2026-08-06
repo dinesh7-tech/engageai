@@ -1,10 +1,13 @@
--- Alter event_registrations table to add new attendee management columns
+-- Alter event_registrations table to add attendee status and AI evaluation columns
 ALTER TABLE public.event_registrations ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'Pending' CHECK (status IN ('Pending', 'Approved', 'Rejected', 'Checked-in'));
 ALTER TABLE public.event_registrations ADD COLUMN IF NOT EXISTS rejection_reason text;
 ALTER TABLE public.event_registrations ADD COLUMN IF NOT EXISTS notes text;
 ALTER TABLE public.event_registrations ADD COLUMN IF NOT EXISTS ip_address text;
 ALTER TABLE public.event_registrations ADD COLUMN IF NOT EXISTS device text;
 ALTER TABLE public.event_registrations ADD COLUMN IF NOT EXISTS activity_history jsonb DEFAULT '[]'::jsonb;
+ALTER TABLE public.event_registrations ADD COLUMN IF NOT EXISTS ai_score integer DEFAULT 0;
+ALTER TABLE public.event_registrations ADD COLUMN IF NOT EXISTS ai_recommendation text DEFAULT 'Medium';
+ALTER TABLE public.event_registrations ADD COLUMN IF NOT EXISTS ai_reasoning jsonb DEFAULT '{}'::jsonb;
 
 -- Sync existing registrations to 'Approved' or 'Checked-in' if they are already checked in
 UPDATE public.event_registrations
@@ -41,6 +44,8 @@ CREATE POLICY "Members can delete registrations" ON public.event_registrations
   ));
 
 -- Allow public read of registrations by ticket_token (for public attendee ticket portal)
+DROP POLICY IF EXISTS "Public read registration by token" ON public.event_registrations;
 CREATE POLICY "Public read registration by token" ON public.event_registrations
   FOR SELECT USING (ticket_token IS NOT NULL);
+
 

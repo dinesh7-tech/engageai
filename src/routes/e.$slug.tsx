@@ -451,14 +451,48 @@ function PublicEventLanding() {
                           <option key={opt} value={opt}>{opt}</option>
                         ))}
                       </select>
+                    ) : f.field_type === "radio" ? (
+                      <div className="space-y-2 pt-1">
+                        {Array.isArray(f.field_options) && f.field_options.map((opt: string) => (
+                          <label key={opt} className="flex items-center gap-2.5 text-sm text-white/80 cursor-pointer">
+                            <input
+                              type="radio"
+                              name={f.field_name}
+                              value={opt}
+                              checked={formValues[f.field_name] === opt}
+                              onChange={(e) => handleInputChange(f.field_name, e.target.value)}
+                              className="size-4 text-primary bg-secondary border-border"
+                            />
+                            {opt}
+                          </label>
+                        ))}
+                      </div>
                     ) : f.field_type === "textarea" ? (
                       <textarea
                         value={formValues[f.field_name] || ""}
                         onChange={(e) => handleInputChange(f.field_name, e.target.value)}
-                        placeholder={`Enter your ${f.field_label.toLowerCase()}`}
                         required={f.required}
-                        className="w-full bg-secondary border border-border/80 min-h-20 p-3 rounded-lg text-sm text-foreground focus-visible:ring-1 focus-visible:ring-primary"
+                        rows={3}
+                        placeholder={`Enter ${f.field_label.toLowerCase()}`}
+                        className="w-full bg-secondary border border-border/80 p-3 rounded-lg text-sm text-foreground focus-visible:ring-1 focus-visible:ring-primary"
                       />
+                    ) : f.field_type === "rating" ? (
+                      <div className="flex items-center gap-2 pt-1">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <button
+                            type="button"
+                            key={star}
+                            onClick={() => handleInputChange(f.field_name, star)}
+                            className={`size-8 rounded-lg border text-sm font-semibold transition-all ${
+                              (formValues[f.field_name] || 0) >= star
+                                ? "bg-amber-500/20 border-amber-500/50 text-amber-300"
+                                : "bg-white/[0.04] border-white/10 text-white/40"
+                            }`}
+                          >
+                            ★ {star}
+                          </button>
+                        ))}
+                      </div>
                     ) : f.field_type === "checkbox" ? (
                       <div className="flex items-center gap-2 pt-1">
                         <input

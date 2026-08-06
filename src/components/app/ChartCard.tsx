@@ -1,29 +1,30 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { FadeUp } from "@/components/motion/primitives";
 
 export function ChartCard({
   title,
   subtitle,
-  actions,
   children,
+  action,
   className,
 }: {
   title: string;
   subtitle?: string | undefined;
-  actions?: ReactNode | undefined;
   children: ReactNode;
+  action?: ReactNode | undefined;
   className?: string | undefined;
 }) {
   return (
-    <section className={cn("panel p-5", className)}>
-      <header className="mb-5 flex items-start justify-between gap-3">
+    <FadeUp className={cn("rounded-2xl border border-white/[0.06] bg-[color:var(--color-card)] p-6", className)}>
+      <div className="flex items-start justify-between gap-4 pb-4">
         <div>
-          <h3 className="font-display text-base font-semibold">{title}</h3>
-          {subtitle && <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>}
+          <h3 className="font-display text-lg font-semibold tracking-tight text-white">{title}</h3>
+          {subtitle && <p className="mt-1 text-xs text-white/50">{subtitle}</p>}
         </div>
-        {actions}
-      </header>
-      {children}
-    </section>
+        {action && <div>{action}</div>}
+      </div>
+      <div>{children}</div>
+    </FadeUp>
   );
 }

@@ -51,24 +51,32 @@ function OnboardingPage() {
   const [timezone, setTimezone] = useState("Asia/Kolkata");
   const [country, setCountry] = useState("IN");
 
-  // Force authentication check on mount
+  // Force authentication & email verification check on mount
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) {
         toast.error("Authentication required to access Setup Wizard");
         navigate({ to: "/auth" });
-      } else {
-        const { data: memberships } = await supabase
-          .from("workspace_members")
-          .select("workspace_id")
-          .eq("user_id", session.user.id)
-          .limit(1);
+        return;
+      }
 
-        if (memberships && memberships.length > 0) {
-          navigate({ to: "/app" });
-        } else {
-          setAuthChecking(false);
-        }
+      // MANDATORY EMAIL VERIFICATION GATE
+      if (!session.user.email_confirmed_at) {
+        toast.info("Please verify your email before starting setup.");
+        navigate({ to: "/verify-email" });
+        return;
+      }
+
+      const { data: memberships } = await supabase
+        .from("workspace_members")
+        .select("workspace_id")
+        .eq("user_id", session.user.id)
+        .limit(1);
+
+      if (memberships && memberships.length > 0) {
+        navigate({ to: "/app" });
+      } else {
+        setAuthChecking(false);
       }
     });
   }, [navigate]);

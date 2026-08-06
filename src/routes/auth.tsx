@@ -42,6 +42,13 @@ function AuthPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    // MANDATORY EMAIL VERIFICATION CHECK
+    if (!user.email_confirmed_at) {
+      toast.info("Please verify your email before proceeding.");
+      navigate({ to: "/verify-email" });
+      return;
+    }
+
     const { data: memberships } = await supabase
       .from("workspace_members")
       .select("workspace_id")
@@ -61,13 +68,20 @@ function AuthPage() {
       return;
     }
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
     setLoading(false);
 
     if (error) {
       toast.error(error.message);
       return;
     }
+
+    if (!data.user?.email_confirmed_at) {
+      toast.info("Email verification pending. Please check your inbox.");
+      navigate({ to: "/verify-email" });
+      return;
+    }
+
     toast.success("Welcome back");
     await checkWorkspaceAndRedirect();
   }
@@ -84,81 +98,28 @@ function AuthPage() {
     setLoading(true);
 
     try {
-      // 1. Invoke server-side admin creation to bypass SMTP rate limits & auto-confirm email
-      const { demoSignUpUser } = await import("@/lib/auth.functions");
-      const res = await demoSignUpUser({
-        data: {
-          email: email.trim(),
-          password,
-          fullName: fullName.trim()
-        }
-      });
-
-      // 2. Perform instant client sign-in with verified credentials
-      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
-
-      if (signInError) {
-        setLoading(false);
-        const friendlyMsg = signInError.message.includes("rate limit") || signInError.message.includes("Email rate limit")
-          ? "Account created successfully. Email verification is disabled for this demo."
-          : signInError.message;
-        toast.error(friendlyMsg);
-        return;
-      }
-
-      setLoading(false);
-      toast.success(res.message || "Account created successfully. Email verification is disabled for this demo.");
-      await checkWorkspaceAndRedirect();
-    } catch (err: any) {
-      // Fallback: If server function fails, attempt direct client signup with graceful rate limit handling
-      console.warn("[Auth Fallback] Admin server creation failed, falling back to standard signup:", err);
-      
+      const redirectUrl = typeof window !== "undefined" ? `${window.location.origin}/verify-email` : "https://engageai-gold.vercel.app/verify-email";
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
         options: {
           data: { full_name: fullName.trim() },
+          emailRedirectTo: redirectUrl,
         },
       });
 
+      setLoading(false);
+
       if (error) {
-        setLoading(false);
-        if (error.message.includes("rate limit") || error.message.includes("Email rate limit") || error.status === 429) {
-          toast.info("Account created successfully. Email verification is disabled for this demo.");
-          // Attempt sign in despite rate limit error on mailer
-          const { error: directLoginErr } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-          if (!directLoginErr) {
-            await checkWorkspaceAndRedirect();
-            return;
-          }
-        } else if (error.message.includes("already registered") || error.message.includes("User already exists")) {
-          // Graceful existing user handling
-          const { error: existingLoginErr } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-          if (!existingLoginErr) {
-            toast.success("Welcome back! Logging into your account.");
-            await checkWorkspaceAndRedirect();
-            return;
-          }
-          toast.error("An account with this email already exists. Please log in.");
-          return;
-        } else {
-          toast.error(error.message);
-          return;
-        }
+        toast.error(error.message);
+        return;
       }
 
-      const { error: signInError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+      toast.success("Account created! Verification email sent.");
+      navigate({ to: "/verify-email" });
+    } catch (err: any) {
       setLoading(false);
-      if (!signInError) {
-        toast.success("Account created successfully. Email verification is disabled for this demo.");
-        await checkWorkspaceAndRedirect();
-      } else {
-        toast.success("Account created successfully. Email verification is disabled for this demo.");
-        navigate({ to: "/onboarding" });
-      }
+      toast.error(err.message || "Registration failed");
     }
   }
 

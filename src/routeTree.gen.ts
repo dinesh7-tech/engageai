@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
+import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as AppAnalyticsRouteImport } from './routes/app.analytics'
 import { Route as AppAutomationRouteImport } from './routes/app.automation'
@@ -27,6 +28,7 @@ import { Route as AppSettingsRouteImport } from './routes/app.settings'
 import { Route as AppWhatsappRouteImport } from './routes/app.whatsapp'
 import { Route as AppWorkspacesRouteImport } from './routes/app.workspaces'
 import { Route as ESlugRouteImport } from './routes/e.$slug'
+import { Route as FTokenRouteImport } from './routes/f.$token'
 import { Route as JoinSlugRouteImport } from './routes/join.$slug'
 import { Route as PublicSlugRouteImport } from './routes/public.$slug'
 import { Route as TicketTokenRouteImport } from './routes/ticket.$token'
@@ -50,6 +52,11 @@ const AuthRoute = AuthRouteImport.update({
 const OnboardingRoute = OnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VerifyEmailRoute = VerifyEmailRouteImport.update({
+  id: '/verify-email',
+  path: '/verify-email',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppIndexRoute = AppIndexRouteImport.update({
@@ -122,6 +129,11 @@ const ESlugRoute = ESlugRouteImport.update({
   path: '/e/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FTokenRoute = FTokenRouteImport.update({
+  id: '/f/$token',
+  path: '/f/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const JoinSlugRoute = JoinSlugRouteImport.update({
   id: '/join/$slug',
   path: '/join/$slug',
@@ -148,6 +160,7 @@ export interface FileRoutesByFullPath {
   '/app': typeof AppRouteWithChildren
   '/auth': typeof AuthRoute
   '/onboarding': typeof OnboardingRoute
+  '/verify-email': typeof VerifyEmailRoute
   '/app/analytics': typeof AppAnalyticsRoute
   '/app/automation': typeof AppAutomationRoute
   '/app/copilot': typeof AppCopilotRoute
@@ -161,6 +174,7 @@ export interface FileRoutesByFullPath {
   '/app/whatsapp': typeof AppWhatsappRoute
   '/app/workspaces': typeof AppWorkspacesRoute
   '/e/$slug': typeof ESlugRoute
+  '/f/$token': typeof FTokenRoute
   '/join/$slug': typeof JoinSlugRoute
   '/public/$slug': typeof PublicSlugRoute
   '/ticket/$token': typeof TicketTokenRoute
@@ -171,6 +185,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/onboarding': typeof OnboardingRoute
+  '/verify-email': typeof VerifyEmailRoute
   '/app/analytics': typeof AppAnalyticsRoute
   '/app/automation': typeof AppAutomationRoute
   '/app/copilot': typeof AppCopilotRoute
@@ -184,6 +199,7 @@ export interface FileRoutesByTo {
   '/app/whatsapp': typeof AppWhatsappRoute
   '/app/workspaces': typeof AppWorkspacesRoute
   '/e/$slug': typeof ESlugRoute
+  '/f/$token': typeof FTokenRoute
   '/join/$slug': typeof JoinSlugRoute
   '/public/$slug': typeof PublicSlugRoute
   '/ticket/$token': typeof TicketTokenRoute
@@ -196,6 +212,7 @@ export interface FileRoutesById {
   '/app': typeof AppRouteWithChildren
   '/auth': typeof AuthRoute
   '/onboarding': typeof OnboardingRoute
+  '/verify-email': typeof VerifyEmailRoute
   '/app/analytics': typeof AppAnalyticsRoute
   '/app/automation': typeof AppAutomationRoute
   '/app/copilot': typeof AppCopilotRoute
@@ -209,6 +226,7 @@ export interface FileRoutesById {
   '/app/whatsapp': typeof AppWhatsappRoute
   '/app/workspaces': typeof AppWorkspacesRoute
   '/e/$slug': typeof ESlugRoute
+  '/f/$token': typeof FTokenRoute
   '/join/$slug': typeof JoinSlugRoute
   '/public/$slug': typeof PublicSlugRoute
   '/ticket/$token': typeof TicketTokenRoute
@@ -222,6 +240,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/auth'
     | '/onboarding'
+    | '/verify-email'
     | '/app/analytics'
     | '/app/automation'
     | '/app/copilot'
@@ -235,6 +254,7 @@ export interface FileRouteTypes {
     | '/app/whatsapp'
     | '/app/workspaces'
     | '/e/$slug'
+    | '/f/$token'
     | '/join/$slug'
     | '/public/$slug'
     | '/ticket/$token'
@@ -245,6 +265,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/onboarding'
+    | '/verify-email'
     | '/app/analytics'
     | '/app/automation'
     | '/app/copilot'
@@ -258,6 +279,7 @@ export interface FileRouteTypes {
     | '/app/whatsapp'
     | '/app/workspaces'
     | '/e/$slug'
+    | '/f/$token'
     | '/join/$slug'
     | '/public/$slug'
     | '/ticket/$token'
@@ -269,6 +291,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/auth'
     | '/onboarding'
+    | '/verify-email'
     | '/app/analytics'
     | '/app/automation'
     | '/app/copilot'
@@ -282,6 +305,7 @@ export interface FileRouteTypes {
     | '/app/whatsapp'
     | '/app/workspaces'
     | '/e/$slug'
+    | '/f/$token'
     | '/join/$slug'
     | '/public/$slug'
     | '/ticket/$token'
@@ -294,7 +318,9 @@ export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   AuthRoute: typeof AuthRoute
   OnboardingRoute: typeof OnboardingRoute
+  VerifyEmailRoute: typeof VerifyEmailRoute
   ESlugRoute: typeof ESlugRoute
+  FTokenRoute: typeof FTokenRoute
   JoinSlugRoute: typeof JoinSlugRoute
   PublicSlugRoute: typeof PublicSlugRoute
   TicketTokenRoute: typeof TicketTokenRoute
@@ -329,6 +355,13 @@ declare module '@tanstack/react-router' {
       path: '/onboarding'
       fullPath: '/onboarding'
       preLoaderRoute: typeof OnboardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/verify-email': {
+      id: '/verify-email'
+      path: '/verify-email'
+      fullPath: '/verify-email'
+      preLoaderRoute: typeof VerifyEmailRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/app/': {
@@ -429,6 +462,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ESlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/f/$token': {
+      id: '/f/$token'
+      path: '/f/$token'
+      fullPath: '/f/$token'
+      preLoaderRoute: typeof FTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/join/$slug': {
       id: '/join/$slug'
       path: '/join/$slug'
@@ -499,7 +539,9 @@ const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   AuthRoute: AuthRoute,
   OnboardingRoute: OnboardingRoute,
+  VerifyEmailRoute: VerifyEmailRoute,
   ESlugRoute: ESlugRoute,
+  FTokenRoute: FTokenRoute,
   JoinSlugRoute: JoinSlugRoute,
   PublicSlugRoute: PublicSlugRoute,
   TicketTokenRoute: TicketTokenRoute,

@@ -964,21 +964,36 @@ export const cancelRegistrationByToken = createServerFn({ method: "POST" })
 export const checkInAttendeeByQR = createServerFn({ method: "POST" })
   .inputValidator((input: { qrPayload: string; eventId: string; workspaceId: string; operatorId?: string }) => input)
   .handler(async ({ data }) => {
-    if (!data || !data.workspaceId) {
-      throw new Error("Check-in failed: A valid workspace ID is required.");
+    if (!data || !data.workspaceId || !data.eventId) {
+      return { status: "INVALID", message: "Check-in failed: Valid workspace and event IDs are required." };
     }
     const supabaseAdmin = await getAdminClient();
 
     let payload: any = null;
-    let ticketToken = data.qrPayload;
+    let ticketToken = data.qrPayload.trim();
+    let registrationId: string | null = null;
+    let payloadEventId: string | null = null;
+    let checksum: string | null = null;
 
     try {
-      if (data.qrPayload.startsWith("{")) {
+      if (data.qrPayload.trim().startsWith("{")) {
         payload = JSON.parse(data.qrPayload);
         if (payload.token) ticketToken = payload.token;
+        if (payload.registrationId) registrationId = payload.registrationId;
+        if (payload.attendeeId) registrationId = payload.attendeeId;
+        if (payload.eventId) payloadEventId = payload.eventId;
+        if (payload.checksum) checksum = payload.checksum;
       }
     } catch (e) {
-      // Direct token fallback
+      // Plain text token fallback
+    }
+
+    // Verify Event mismatch if embedded in payload
+    if (payloadEventId && payloadEventId !== data.eventId) {
+      return {
+        status: "INVALID",
+        message: "Wrong Event: This ticket was issued for a different event."
+      };
     }
 
     // Lookup registration
@@ -987,8 +1002,8 @@ export const checkInAttendeeByQR = createServerFn({ method: "POST" })
       .select("*, events(name)")
       .eq("event_id", data.eventId);
 
-    if (payload && payload.registration_id) {
-      query = query.eq("id", payload.registration_id);
+    if (registrationId) {
+      query = query.eq("id", registrationId);
     } else {
       query = query.eq("ticket_token", ticketToken);
     }
@@ -996,46 +1011,79 @@ export const checkInAttendeeByQR = createServerFn({ method: "POST" })
     const { data: reg, error: fetchErr } = await query.maybeSingle();
 
     if (fetchErr || !reg) {
-      throw new Error("Invalid or unverified ticket QR code.");
+      return {
+        status: "INVALID",
+        message: "Invalid Ticket: No registration found for this QR token."
+      };
     }
 
+    // Verify Checksum if present
+    if (checksum) {
+      const expectedChecksum = Buffer.from(`${reg.id}:${reg.event_id}:${reg.ticket_token}`).toString("base64").slice(0, 12);
+      if (checksum !== expectedChecksum) {
+        return {
+          status: "INVALID",
+          message: "Tampered QR Code: Checksum verification failed."
+        };
+      }
+    }
+
+    // Status checks
     if (reg.status === "Pending") {
-      throw new Error("This registration is pending approval and cannot be used for check-in.");
+      return {
+        status: "PENDING",
+        message: "Pending Approval: This ticket is awaiting organizer approval.",
+        attendee: reg
+      };
     }
 
     if (reg.status === "Rejected") {
-      throw new Error("This registration has been rejected and disabled.");
+      return {
+        status: "REJECTED",
+        message: "Registration Declined: This ticket has been rejected and disabled.",
+        attendee: reg
+      };
     }
 
     if (reg.checked_in || reg.status === "Checked-in") {
-      return { success: true, alreadyCheckedIn: true, attendee: reg };
+      return {
+        status: "ALREADY_CHECKED_IN",
+        message: `Already Checked-in: ${reg.name} was checked in on ${reg.checked_in_at ? new Date(reg.checked_in_at).toLocaleTimeString() : 'earlier'}.`,
+        attendee: reg,
+        alreadyCheckedIn: true
+      };
     }
 
-    // Perform check in
+    // Perform check-in update
     const currentHistory = Array.isArray(reg.activity_history) ? reg.activity_history : [];
     const nextHistory = [
       ...currentHistory,
       {
-        activity: "Checked In via QR",
+        activity: "Checked In via QR Camera Scan",
         timestamp: new Date().toISOString(),
         details: "Scanned & verified at entrance."
       }
     ];
 
+    const now = new Date().toISOString();
     const { error: updateErr } = await supabaseAdmin
       .from("event_registrations")
       .update({
         checked_in: true,
-        checked_in_at: new Date().toISOString(),
+        checked_in_at: now,
         status: "Checked-in",
         activity_history: nextHistory
       })
       .eq("id", reg.id);
 
     if (updateErr) {
-      throw new Error(`Check-in update failed: ${updateErr.message}`);
+      return {
+        status: "INVALID",
+        message: `Check-in update failed: ${updateErr.message}`
+      };
     }
 
+    // Log checkin event
     await supabaseAdmin
       .from("event_checkins")
       .insert({
@@ -1045,6 +1093,11 @@ export const checkInAttendeeByQR = createServerFn({ method: "POST" })
         scanned_by: data.operatorId || null
       });
 
-    return { success: true, alreadyCheckedIn: false, attendee: reg };
+    return {
+      status: "VALID",
+      message: "✓ Successfully Checked In!",
+      attendee: { ...reg, checked_in: true, checked_in_at: now, status: "Checked-in" },
+      alreadyCheckedIn: false
+    };
   });
 

@@ -52,6 +52,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { useActiveWorkspace } from "@/hooks/useActiveWorkspace";
 import { supabase } from "@/integrations/supabase/client";
 import { createEvent, publishEvent, checkInAttendee, fetchEventAnalytics, registerAttendee, deleteEvent, duplicateEvent, updateEventDetails } from "@/lib/event.functions";
+import { endEventAndLaunchFeedback } from "@/lib/feedback.functions";
 import { builtInCategories, type CategoryPreset, type TemplatePreset } from "@/lib/event-templates";
 import { emitActivity } from "@/lib/realtime.functions";
 import { EventAttendeesTab } from "@/components/app/EventAttendeesTab";
@@ -932,6 +933,32 @@ function EventAIPage() {
               subtitle={`${activeEvent?.venue || ""} · ${activeEvent?.status || ""}`}
               actions={
                 <div className="flex items-center gap-2">
+                  {activeEvent.status !== "ended" && (
+                    <Button
+                      size="sm"
+                      className="gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold shadow-md"
+                      onClick={async () => {
+                        try {
+                          toast.loading("Ending event and triggering FeedbackAI campaign...", { id: "end-evt" });
+                          const res = await endEventAndLaunchFeedback({
+                            data: {
+                              eventId: activeEvent.id,
+                              workspaceId,
+                              audienceType: "approved"
+                            }
+                          });
+                          toast.dismiss("end-evt");
+                          toast.success(`Event Ended! Launched Feedback Campaign to ${res.totalSent} attendees!`);
+                          fetchEvents();
+                        } catch (err: any) {
+                          toast.dismiss("end-evt");
+                          toast.error("Failed to end event: " + err.message);
+                        }
+                      }}
+                    >
+                      <Sparkles className="size-3.5 fill-current" /> End Event & Launch Feedback
+                    </Button>
+                  )}
                   <Button size="sm" variant="outline" onClick={copyLandingLink} className="gap-1">
                     <Copy className="size-3.5" /> Public URL
                   </Button>
