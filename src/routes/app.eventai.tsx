@@ -27,7 +27,8 @@ import {
   ChevronRight, 
   Copy,
   PieChart as PieIcon,
-  Globe
+  Globe,
+  Loader2
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/app/PageHeader";
@@ -43,7 +44,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useActiveWorkspace } from "@/hooks/useActiveWorkspace";
 import { supabase } from "@/integrations/supabase/client";
-import { createEvent, publishEvent, checkInAttendee, fetchEventAnalytics } from "@/lib/event.functions";
+import { createEvent, publishEvent, checkInAttendee, fetchEventAnalytics, registerAttendee } from "@/lib/event.functions";
 import { builtInCategories, type CategoryPreset, type TemplatePreset } from "@/lib/event-templates";
 import { emitActivity } from "@/lib/realtime.functions";
 import { 
@@ -80,7 +81,7 @@ const getCategoryIcon = (iconName: string) => {
 const COLORS = ["#8b5cf6", "#3b82f6", "#10b981", "#f59e0b", "#ec4899", "#f43f5e"];
 
 function EventAIPage() {
-  const { activeWorkspace } = useActiveWorkspace();
+  const { activeWorkspace, loading: wsLoading } = useActiveWorkspace();
   const workspaceId = activeWorkspace?.id;
 
   const [events, setEvents] = useState<any[]>([]);
@@ -261,7 +262,29 @@ function EventAIPage() {
 
   // Create Event using Server Functions
   const handleWizardSubmit = async () => {
-    if (!eventName.trim() || !workspaceId) return;
+    console.log("[Event Creation Flow] Step 1: Event Wizard submitted. Input:", { eventName, eventVenue, eventDate, regType, capLimit, approvalMode, eventTheme });
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast.error("You must be logged in to create an event.");
+      return;
+    }
+
+    if (!activeWorkspace) {
+      toast.error("No active workspace found. Please select or create a workspace.");
+      return;
+    }
+    console.log("[Event Creation Flow] Step 2: Workspace context resolved active workspace:", activeWorkspace);
+
+    if (!workspaceId) {
+      toast.error("Workspace ID is not available.");
+      return;
+    }
+
+    if (!eventName.trim()) {
+      toast.error("Event name is required.");
+      return;
+    }
 
     try {
       const defaultFields = selectedTemplate?.default_form_fields || [
@@ -390,6 +413,14 @@ function EventAIPage() {
       }
     ]
   }))];
+
+  if (wsLoading) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <>
@@ -584,7 +615,11 @@ function EventAIPage() {
                       </div>
                     </div>
                     <DialogFooter className="pt-2">
-                      <Button onClick={handleWizardSubmit} className="w-full bg-gradient-to-r from-primary to-indigo-600">
+                      <Button 
+                        onClick={handleWizardSubmit} 
+                        disabled={!workspaceId}
+                        className="w-full bg-gradient-to-r from-primary to-indigo-600"
+                      >
                         Create & Seed Event
                       </Button>
                     </DialogFooter>
@@ -640,7 +675,7 @@ function EventAIPage() {
                     <p className="text-[10px] text-muted-foreground truncate mt-0.5">Category: {e.subcategory || "Other"}</p>
                   </div>
                   <Badge variant={e.status === "registration_open" ? "default" : "secondary"} className="capitalize text-[10px]">
-                    {e.status.replace("_", " ")}
+                    {e.status?.replace("_", " ") || ""}
                   </Badge>
                 </button>
               ))}
@@ -652,8 +687,8 @@ function EventAIPage() {
         <div className="lg:col-span-3 space-y-4">
           {activeEvent ? (
             <ChartCard
-              title={activeEvent.name}
-              subtitle={`${activeEvent.venue} · ${activeEvent.status}`}
+              title={activeEvent?.name || ""}
+              subtitle={`${activeEvent?.venue || ""} · ${activeEvent?.status || ""}`}
               actions={
                 <div className="flex items-center gap-2">
                   <Button size="xs" variant="outline" onClick={copyLandingLink} className="gap-1">
@@ -687,16 +722,24 @@ function EventAIPage() {
                       <DialogFooter>
                         <Button onClick={async () => {
                           if(!regName.trim()) return;
-                          await registerAttendee({
-                            eventId: activeEvent.id,
-                            workspaceId: activeEvent.workspace_id,
-                            name: regName.trim(),
-                            email: regEmail || null,
-                            phone: regPhone || null
-                          });
-                          toast.success("Attendee registered successfully!");
-                          setRegOpen(false);
-                          fetchActiveEventDetails();
+                          if (!activeEvent || !activeEvent.workspace_id) {
+                            toast.error("Event workspace ID is not available.");
+                            return;
+                          }
+                          try {
+                            await registerAttendee({
+                              eventId: activeEvent.id,
+                              workspaceId: activeEvent.workspace_id,
+                              name: regName.trim(),
+                              email: regEmail || null,
+                              phone: regPhone || null
+                            });
+                            toast.success("Attendee registered successfully!");
+                            setRegOpen(false);
+                            fetchActiveEventDetails();
+                          } catch (err: any) {
+                            toast.error(err.message || "Registration failed");
+                          }
                         }} className="w-full">Register</Button>
                       </DialogFooter>
                     </DialogContent>
@@ -744,8 +787,8 @@ function EventAIPage() {
                         <span>Form fields initialized ({formFields.length} fields).</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <CheckCircle2 className={activeEvent.status !== "draft" ? "size-4 text-emerald-500" : "size-4 text-muted-foreground"} />
-                        <span>Publish status: <strong className="uppercase">{activeEvent.status}</strong></span>
+                        <CheckCircle2 className={activeEvent?.status !== "draft" ? "size-4 text-emerald-500" : "size-4 text-muted-foreground"} />
+                        <span>Publish status: <strong className="uppercase">{activeEvent?.status || "DRAFT"}</strong></span>
                       </div>
                     </div>
                   </div>
@@ -800,11 +843,12 @@ function EventAIPage() {
                       <Label className="text-xs font-semibold">Pre-defined Landing Sections</Label>
                       <div className="flex flex-wrap gap-2 pt-2">
                         {["Banner", "Countdown", "About", "Agenda", "Speakers", "FAQ", "Registration", "Footer"].map(sec => {
-                          const isEnabled = (activeEvent.landing_page_sections || []).includes(sec);
+                          const isEnabled = (activeEvent?.landing_page_sections || []).includes(sec);
                           return (
                             <button
                               key={sec}
                               onClick={async () => {
+                                if (!activeEvent?.id) return;
                                 const list = activeEvent.landing_page_sections || [];
                                 const nextList = isEnabled ? list.filter((l: string) => l !== sec) : [...list, sec];
                                 await supabase.from("events").update({ landing_page_sections: nextList }).eq("id", activeEvent.id);
@@ -828,8 +872,9 @@ function EventAIPage() {
                       <div className="space-y-1.5">
                         <Label className="text-xs font-semibold">Change Theme</Label>
                         <select 
-                          value={activeEvent.theme} 
+                          value={activeEvent?.theme || "Professional"} 
                           onChange={async (e) => {
+                            if (!activeEvent?.id) return;
                             await supabase.from("events").update({ theme: e.target.value }).eq("id", activeEvent.id);
                             toast.success("Theme changed!");
                             fetchEvents();
@@ -900,7 +945,7 @@ function EventAIPage() {
                     <div className="space-y-1.5">
                       <Label className="text-xs font-semibold">Change Event Status</Label>
                       <select 
-                        value={activeEvent.status} 
+                        value={activeEvent?.status || "draft"} 
                         onChange={(e) => handleStatusChange(e.target.value)}
                         className="w-full bg-secondary border border-border h-10 px-2 rounded-lg text-xs text-foreground"
                       >
@@ -914,8 +959,8 @@ function EventAIPage() {
                       <div className="space-y-1.5">
                         <Label className="text-xs font-semibold">Registration Limits</Label>
                         <div className="text-xs text-muted-foreground mt-1">
-                          Limit mode: <strong>{activeEvent.registration_type}</strong> <br />
-                          Seat limit: <strong>{activeEvent.capacity_limit || "unlimited"}</strong>
+                          Limit mode: <strong>{activeEvent?.registration_type || "unlimited"}</strong> <br />
+                          Seat limit: <strong>{activeEvent?.capacity_limit || "unlimited"}</strong>
                         </div>
                       </div>
                       <div className="space-y-1.5">

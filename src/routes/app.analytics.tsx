@@ -24,7 +24,7 @@ function AnalyticsPage() {
 
   useEffect(() => {
     if (!activeWorkspace?.id) return;
-    getWorkspaceMetrics({ data: { workspaceId: activeWorkspace.id } })
+    getWorkspaceMetrics({ data: { workspaceId: activeWorkspace?.id } })
       .then((res) => setMetrics(res))
       .catch(() => {});
   }, [activeWorkspace?.id]);

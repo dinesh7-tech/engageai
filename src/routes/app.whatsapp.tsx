@@ -104,7 +104,7 @@ function WhatsAppPage() {
     setConnecting(true);
     try {
       await saveWhatsAppConfig({
-        workspaceId: activeWorkspace.id,
+        workspaceId: activeWorkspace?.id,
         phoneId: phoneId.trim(),
         businessId: businessId.trim(),
         accessToken: accessToken.trim(),

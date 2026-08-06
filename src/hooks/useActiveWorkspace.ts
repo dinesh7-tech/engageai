@@ -41,6 +41,43 @@ export function useActiveWorkspace() {
       .eq("user_id", user.id);
 
     if (!memberships || memberships.length === 0) {
+      try {
+        console.log("[Workspace Provisioning] No memberships found. Provisioning default workspace...");
+        const { WorkspaceProvisioningService } = await import("@/lib/provisioning");
+        const defaultWsId = await WorkspaceProvisioningService.provisionWorkspace({
+          userId: user.id,
+          name: "My Workspace",
+          category: "Other",
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+          country: "US",
+        });
+
+        // Query memberships again
+        const { data: newMemberships } = await supabase
+          .from("workspace_members")
+          .select("workspace_id")
+          .eq("user_id", user.id);
+
+        if (newMemberships && newMemberships.length > 0) {
+          const wsIds = newMemberships.map((m) => m.workspace_id);
+          const { data: workspaces } = await supabase
+            .from("workspaces")
+            .select("id, name, slug, category, logo_url, timezone, country, plan, owner_id")
+            .in("id", wsIds);
+
+          const list = (workspaces || []) as Workspace[];
+          setWorkspaceList(list);
+
+          if (list.length > 0) {
+            localStorage.setItem(STORAGE_KEY, list[0]!.id);
+            setActiveId(list[0]!.id);
+          }
+          setLoading(false);
+          return;
+        }
+      } catch (err: any) {
+        console.error("Auto workspace provisioning failed:", err);
+      }
       setWorkspaceList([]);
       setLoading(false);
       return;

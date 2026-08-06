@@ -30,7 +30,13 @@ export interface CreateEventInput {
 export const createEvent = createServerFn({ method: "POST" })
   .inputValidator((input: CreateEventInput) => input)
   .handler(async ({ data }) => {
+    if (!data.workspaceId) {
+      throw new Error("Cannot create event: A valid workspace ID is required.");
+    }
+    console.log("[Event Creation Flow] Step 3: Invoking createEvent() server function. Workspace ID:", data.workspaceId, "Event Name:", data.name);
+
     // 1. Create the event
+    console.log("[Event Creation Flow] Step 4: Executing Supabase insert for event...");
     const { data: event, error: eventErr } = await supabase
       .from("events")
       .insert({
@@ -141,6 +147,9 @@ export interface RegisterAttendeeInput {
 export const registerAttendee = createServerFn({ method: "POST" })
   .inputValidator((input: RegisterAttendeeInput) => input)
   .handler(async ({ data }) => {
+    if (!data.workspaceId) {
+      throw new Error("Registration failed: A valid workspace ID is required.");
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     // Check capacity limit if capacity is checked
@@ -208,6 +217,9 @@ export const registerAttendee = createServerFn({ method: "POST" })
 export const checkInAttendee = createServerFn({ method: "POST" })
   .inputValidator((input: { registrationId: string; eventId: string; workspaceId: string; operatorId?: string }) => input)
   .handler(async ({ data }) => {
+    if (!data.workspaceId) {
+      throw new Error("Check-in failed: A valid workspace ID is required.");
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     // 1. Update registration checked_in status
@@ -247,6 +259,9 @@ export interface LogAnalyticsInput {
 export const logEventAnalytics = createServerFn({ method: "POST" })
   .inputValidator((input: LogAnalyticsInput) => input)
   .handler(async ({ data }) => {
+    if (!data.workspaceId) {
+      throw new Error("Log analytics failed: A valid workspace ID is required.");
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     
     await supabaseAdmin

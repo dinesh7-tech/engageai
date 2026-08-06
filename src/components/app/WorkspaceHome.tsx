@@ -190,16 +190,16 @@ export function WorkspaceHome() {
               className="flex items-center gap-3 rounded-2xl border border-border/80 glass px-4 py-2.5 hover:bg-secondary/40 transition-all text-left"
             >
               <div className="grid size-9 place-items-center rounded-xl bg-gradient-to-br from-primary/80 to-purple-600 text-sm font-semibold text-white shadow-lg shadow-primary/20">
-                {activeWorkspace.name.slice(0, 2).toUpperCase()}
+                {activeWorkspace?.name?.slice(0, 2).toUpperCase() || ""}
               </div>
               <div>
                 <div className="flex items-center gap-1.5">
-                  <span className="font-semibold text-sm tracking-tight">{activeWorkspace.name}</span>
+                  <span className="font-semibold text-sm tracking-tight">{activeWorkspace?.name || ""}</span>
                   <ChevronDown className="size-3.5 text-muted-foreground" />
                 </div>
                 <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mt-0.5">
                   <span className="inline-block size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <span>Online · {activeWorkspace.plan}</span>
+                  <span>Online · {activeWorkspace?.plan || ""}</span>
                 </div>
               </div>
             </button>
@@ -228,7 +228,7 @@ export function WorkspaceHome() {
                             toast.success(`Switched to ${ws.name}`);
                           }}
                           className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm transition-colors ${
-                            ws.id === activeWorkspace.id
+                            ws.id === activeWorkspace?.id
                               ? "bg-primary/20 text-foreground border border-primary/20"
                               : "hover:bg-secondary/50 text-muted-foreground hover:text-foreground"
                           }`}
@@ -321,7 +321,7 @@ export function WorkspaceHome() {
                 <h1 className="font-display text-2xl md:text-3xl font-semibold leading-tight tracking-tight">
                   Good Morning {profile?.full_name?.split(" ")[0] || user?.email?.split("@")[0] || "there"} 👋 <br />
                   <span className="text-muted-foreground text-xl md:text-2xl font-light">
-                    Let's complete your operational configuration for {activeWorkspace.name}.
+                    Let's complete your operational configuration for {activeWorkspace?.name || ""}.
                   </span>
                 </h1>
                 <p className="text-sm text-muted-foreground max-w-xl">
@@ -375,7 +375,7 @@ export function WorkspaceHome() {
                 <Progress value={40} className="h-1.5" />
               </div>
               <p className="text-xs text-muted-foreground leading-normal">
-                Configuration files initialized for <strong>{activeWorkspace.category}</strong>. Install operations channels above to unlock live score analytics.
+                Configuration files initialized for <strong>{activeWorkspace?.category || ""}</strong>. Install operations channels above to unlock live score analytics.
               </p>
             </div>
           </div>
@@ -415,7 +415,7 @@ export function WorkspaceHome() {
                     <h1 className="font-display text-2xl md:text-3xl font-semibold leading-tight tracking-tight">
                       Good Morning {profile?.full_name?.split(" ")[0] || user?.email?.split("@")[0] || "there"} 👋 <br />
                       <span className="text-muted-foreground text-xl md:text-2xl font-light">
-                        {activeWorkspace.name} is operating normally.
+                        {activeWorkspace?.name || ""} is operating normally.
                       </span>
                     </h1>
                     
