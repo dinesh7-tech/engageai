@@ -30,6 +30,7 @@ export interface CreateEventInput {
   landingPageSections?: string[];
   defaultFields?: any[];
   defaultTickets?: any[];
+  status?: string;
 }
 
 export const createEvent = createServerFn({ method: "POST" })
@@ -50,7 +51,7 @@ export const createEvent = createServerFn({ method: "POST" })
         name: data.name,
         venue: data.venue || "To be announced",
         date: data.date ? new Date(data.date).toISOString() : null,
-        status: "draft",
+        status: data.status || "draft",
         category_id: data.categoryId || null,
         subcategory: data.subcategory || null,
         registration_type: data.registrationType || "unlimited",
@@ -66,55 +67,63 @@ export const createEvent = createServerFn({ method: "POST" })
       throw new Error(`Failed to create event: ${eventErr.message}`);
     }
 
-    // 2. Insert Form Fields
-    if (data.defaultFields && data.defaultFields.length > 0) {
-      const fieldsToInsert = data.defaultFields.map((f, idx) => ({
+    try {
+      // 2. Insert Form Fields
+      if (data.defaultFields && data.defaultFields.length > 0) {
+        const fieldsToInsert = data.defaultFields.map((f, idx) => ({
+          workspace_id: data.workspaceId,
+          event_id: event.id,
+          field_name: f.field_name,
+          field_label: f.field_label,
+          field_type: f.field_type,
+          required: f.required,
+          field_options: f.field_options || [],
+          conditional_rules: f.conditional_rules || [],
+          sort_order: idx
+        }));
+
+        const { error: fieldsErr } = await supabaseAdmin
+          .from("event_form_fields")
+          .insert(fieldsToInsert);
+
+        if (fieldsErr) {
+          throw fieldsErr;
+        }
+      } else {
+        // Default fallback contact fields
+        const fallbackFields = [
+          { workspace_id: data.workspaceId, event_id: event.id, field_name: "name", field_label: "Full Name", field_type: "text", required: true, sort_order: 0 },
+          { workspace_id: data.workspaceId, event_id: event.id, field_name: "email", field_label: "Email Address", field_type: "email", required: true, sort_order: 1 },
+          { workspace_id: data.workspaceId, event_id: event.id, field_name: "phone", field_label: "WhatsApp Mobile", field_type: "tel", required: true, sort_order: 2 }
+        ];
+        const { error: fallbackErr } = await supabaseAdmin.from("event_form_fields").insert(fallbackFields);
+        if (fallbackErr) throw fallbackErr;
+      }
+
+      // 3. Insert Default Ticket Tier
+      const ticketTiers = data.defaultTickets || [{ name: "General Admission", ticket_type: "free", price: 0.00 }];
+      const ticketsToInsert = ticketTiers.map(t => ({
         workspace_id: data.workspaceId,
         event_id: event.id,
-        field_name: f.field_name,
-        field_label: f.field_label,
-        field_type: f.field_type,
-        required: f.required,
-        field_options: f.field_options || [],
-        conditional_rules: f.conditional_rules || [],
-        sort_order: idx
+        name: t.name,
+        description: t.description || "",
+        ticket_type: t.ticket_type || "free",
+        price: t.price || 0.00,
+        capacity_limit: data.capacityLimit || null
       }));
 
-      const { error: fieldsErr } = await supabaseAdmin
-        .from("event_form_fields")
-        .insert(fieldsToInsert);
+      const { error: ticketsErr } = await supabaseAdmin
+        .from("event_tickets")
+        .insert(ticketsToInsert);
 
-      if (fieldsErr) {
-        console.error("Form fields seeding failed:", fieldsErr);
+      if (ticketsErr) {
+        throw ticketsErr;
       }
-    } else {
-      // Default fallback contact fields
-      const fallbackFields = [
-        { workspace_id: data.workspaceId, event_id: event.id, field_name: "name", field_label: "Full Name", field_type: "text", required: true, sort_order: 0 },
-        { workspace_id: data.workspaceId, event_id: event.id, field_name: "email", field_label: "Email Address", field_type: "email", required: true, sort_order: 1 },
-        { workspace_id: data.workspaceId, event_id: event.id, field_name: "phone", field_label: "WhatsApp Mobile", field_type: "tel", required: true, sort_order: 2 }
-      ];
-      await supabaseAdmin.from("event_form_fields").insert(fallbackFields);
-    }
-
-    // 3. Insert Default Ticket Tier
-    const ticketTiers = data.defaultTickets || [{ name: "General Admission", ticket_type: "free", price: 0.00 }];
-    const ticketsToInsert = ticketTiers.map(t => ({
-      workspace_id: data.workspaceId,
-      event_id: event.id,
-      name: t.name,
-      description: t.description || "",
-      ticket_type: t.ticket_type || "free",
-      price: t.price || 0.00,
-      capacity_limit: data.capacityLimit || null
-    }));
-
-    const { error: ticketsErr } = await supabaseAdmin
-      .from("event_tickets")
-      .insert(ticketsToInsert);
-
-    if (ticketsErr) {
-      console.error("Ticket tiers seeding failed:", ticketsErr);
+    } catch (err: any) {
+      console.error("[Event Seeding Rollback] Error seeding event, cleaning up draft event record:", err);
+      // Clean up the created event
+      await supabaseAdmin.from("events").delete().eq("id", event.id);
+      throw new Error(`Failed to seed event options: ${err.message || err}`);
     }
 
     return event;
@@ -328,4 +337,156 @@ export const fetchEventAnalytics = createServerFn({ method: "GET" })
       sources: Object.entries(sources).map(([name, value]) => ({ name, value })),
       devices: Object.entries(devices).map(([name, value]) => ({ name, value }))
     };
+  });
+
+export const deleteEvent = createServerFn({ method: "POST" })
+  .inputValidator((input: { eventId: string; workspaceId: string }) => input)
+  .handler(async ({ data }) => {
+    if (!data || !data.workspaceId) {
+      throw new Error("Cannot delete event: A valid workspace ID is required.");
+    }
+    const supabaseAdmin = await getAdminClient();
+    const { error } = await supabaseAdmin
+      .from("events")
+      .delete()
+      .eq("id", data.eventId)
+      .eq("workspace_id", data.workspaceId);
+
+    if (error) {
+      throw new Error(`Failed to delete event: ${error.message}`);
+    }
+    return { success: true };
+  });
+
+export const duplicateEvent = createServerFn({ method: "POST" })
+  .inputValidator((input: { eventId: string; workspaceId: string }) => input)
+  .handler(async ({ data }) => {
+    if (!data || !data.workspaceId) {
+      throw new Error("Cannot duplicate event: A valid workspace ID is required.");
+    }
+    const supabaseAdmin = await getAdminClient();
+
+    // 1. Fetch original event details
+    const { data: orig, error: fetchErr } = await supabaseAdmin
+      .from("events")
+      .select("*")
+      .eq("id", data.eventId)
+      .single();
+
+    if (fetchErr || !orig) {
+      throw new Error(`Failed to fetch original event: ${fetchErr?.message || "Not found"}`);
+    }
+
+    // 2. Insert duplicate event
+    const { data: newEv, error: insertErr } = await supabaseAdmin
+      .from("events")
+      .insert({
+        workspace_id: data.workspaceId,
+        name: `Copy of ${orig.name}`,
+        venue: orig.venue,
+        date: orig.date,
+        status: "draft", // always defaults to draft
+        category_id: orig.category_id,
+        subcategory: orig.subcategory,
+        registration_type: orig.registration_type,
+        capacity_limit: orig.capacity_limit,
+        approval_mode: orig.approval_mode,
+        theme: orig.theme,
+        landing_page_sections: orig.landing_page_sections || ["Banner", "About", "Registration"],
+        custom_landing_config: orig.custom_landing_config || {}
+      })
+      .select()
+      .single();
+
+    if (insertErr || !newEv) {
+      throw new Error(`Failed to duplicate event structure: ${insertErr?.message}`);
+    }
+
+    try {
+      // 3. Duplicate Form Fields
+      const { data: fields } = await supabaseAdmin
+        .from("event_form_fields")
+        .select("*")
+        .eq("event_id", data.eventId);
+
+      if (fields && fields.length > 0) {
+        const fieldsToInsert = fields.map((f: any) => ({
+          workspace_id: data.workspaceId,
+          event_id: newEv.id,
+          field_name: f.field_name,
+          field_label: f.field_label,
+          field_type: f.field_type,
+          required: f.required,
+          field_options: f.field_options || [],
+          conditional_rules: f.conditional_rules || [],
+          sort_order: f.sort_order
+        }));
+        await supabaseAdmin.from("event_form_fields").insert(fieldsToInsert);
+      }
+
+      // 4. Duplicate Ticket Tiers
+      const { data: tickets } = await supabaseAdmin
+        .from("event_tickets")
+        .select("*")
+        .eq("event_id", data.eventId);
+
+      if (tickets && tickets.length > 0) {
+        const ticketsToInsert = tickets.map((t: any) => ({
+          workspace_id: data.workspaceId,
+          event_id: newEv.id,
+          name: t.name,
+          description: t.description || "",
+          ticket_type: t.ticket_type || "free",
+          price: t.price || 0.00,
+          capacity_limit: t.capacity_limit
+        }));
+        await supabaseAdmin.from("event_tickets").insert(ticketsToInsert);
+      }
+    } catch (err) {
+      // Seeding rollback
+      await supabaseAdmin.from("events").delete().eq("id", newEv.id);
+      throw err;
+    }
+
+    return newEv;
+  });
+
+export const updateEventDetails = createServerFn({ method: "POST" })
+  .inputValidator((input: {
+    eventId: string;
+    workspaceId: string;
+    name: string;
+    venue?: string;
+    date?: string;
+    registrationType?: "unlimited" | "capacity";
+    capacityLimit?: number | null;
+    approvalMode?: "auto" | "manual";
+    theme?: string;
+  }) => input)
+  .handler(async ({ data }) => {
+    if (!data || !data.workspaceId) {
+      throw new Error("Cannot update event: A valid workspace ID is required.");
+    }
+    const supabaseAdmin = await getAdminClient();
+
+    const { data: event, error } = await supabaseAdmin
+      .from("events")
+      .update({
+        name: data.name.trim(),
+        venue: data.venue || "To be announced",
+        date: data.date ? new Date(data.date).toISOString() : null,
+        registration_type: data.registrationType || "unlimited",
+        capacity_limit: data.registrationType === "capacity" ? data.capacityLimit : null,
+        approval_mode: data.approvalMode || "auto",
+        theme: data.theme || "Professional"
+      })
+      .eq("id", data.eventId)
+      .eq("workspace_id", data.workspaceId)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to update event details: ${error.message}`);
+    }
+    return event;
   });

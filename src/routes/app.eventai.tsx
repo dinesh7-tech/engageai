@@ -28,7 +28,11 @@ import {
   Copy,
   PieChart as PieIcon,
   Globe,
-  Loader2
+  Loader2,
+  MoreVertical,
+  Edit,
+  Archive,
+  Link2
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/app/PageHeader";
@@ -42,9 +46,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogFooter, AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel } from "@/components/ui/alert-dialog";
+import { QRCodeSVG } from "qrcode.react";
 import { useActiveWorkspace } from "@/hooks/useActiveWorkspace";
 import { supabase } from "@/integrations/supabase/client";
-import { createEvent, publishEvent, checkInAttendee, fetchEventAnalytics, registerAttendee } from "@/lib/event.functions";
+import { createEvent, publishEvent, checkInAttendee, fetchEventAnalytics, registerAttendee, deleteEvent, duplicateEvent, updateEventDetails } from "@/lib/event.functions";
 import { builtInCategories, type CategoryPreset, type TemplatePreset } from "@/lib/event-templates";
 import { emitActivity } from "@/lib/realtime.functions";
 import { 
@@ -121,6 +128,25 @@ function EventAIPage() {
   // AI Prompt Helper State
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiAnalyzing, setAiAnalyzing] = useState(false);
+
+  // Edit dialog state variables
+  const [editOpen, setEditOpen] = useState(false);
+  const [editEventData, setEditEventData] = useState<any>(null);
+  const [editName, setEditName] = useState("");
+  const [editVenue, setEditVenue] = useState("");
+  const [editDate, setEditDate] = useState("");
+  const [editRegType, setEditRegType] = useState<"unlimited" | "capacity">("unlimited");
+  const [editCapLimit, setEditCapLimit] = useState<number>(100);
+  const [editApprovalMode, setEditApprovalMode] = useState<"auto" | "manual">("auto");
+  const [editTheme, setEditTheme] = useState("Professional");
+
+  // Delete event confirmation dialog
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [eventToDelete, setEventToDelete] = useState<any>(null);
+
+  // QR Code preview dialog
+  const [qrOpen, setQrOpen] = useState(false);
+  const [qrEvent, setQrEvent] = useState<any>(null);
 
   // Active event sub-panel lists
   const [formFields, setFormFields] = useState<any[]>([]);
@@ -261,8 +287,8 @@ function EventAIPage() {
   };
 
   // Create Event using Server Functions
-  const handleWizardSubmit = async () => {
-    console.log("[Event Creation Flow] Step 1: Event Wizard submitted. Input:", { eventName, eventVenue, eventDate, regType, capLimit, approvalMode, eventTheme });
+  const handleWizardSubmit = async (status: "draft" | "published") => {
+    console.log("[Event Creation Flow] Step 1: Event Wizard submitted. Input:", { eventName, eventVenue, eventDate, regType, capLimit, approvalMode, eventTheme, status });
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
@@ -281,9 +307,24 @@ function EventAIPage() {
       return;
     }
 
-    if (!eventName.trim()) {
-      toast.error("Event name is required.");
-      return;
+    if (status === "published") {
+      if (!eventName.trim()) {
+        toast.error("Event name is required to publish.");
+        return;
+      }
+      if (!eventVenue.trim()) {
+        toast.error("Venue address is required to publish.");
+        return;
+      }
+      if (!eventDate) {
+        toast.error("Date & Time is required to publish.");
+        return;
+      }
+    } else {
+      if (!eventName.trim()) {
+        toast.error("Event name is required to save a draft.");
+        return;
+      }
     }
 
     try {
@@ -302,8 +343,8 @@ function EventAIPage() {
         data: {
           workspaceId,
           name: eventName.trim(),
-          venue: eventVenue || "Grand Hall Ballroom",
-          date: eventDate,
+          venue: eventVenue || "To be announced",
+          date: eventDate || null,
           categoryId: null, // Scoped custom reference if any
           subcategory: selectedTemplate?.name || "Custom Event",
           registrationType: regType,
@@ -312,11 +353,12 @@ function EventAIPage() {
           theme: eventTheme,
           landingPageSections: selectedTemplate?.default_landing_page?.sections || ["Banner", "About", "Registration"],
           defaultFields,
-          defaultTickets
+          defaultTickets,
+          status
         }
       });
 
-      toast.success(`Event "${ev.name}" created in draft status.`);
+      toast.success(`Event "${ev.name}" successfully saved as ${status}.`);
       setCreateOpen(false);
       setWizardStep("category");
       setSelectedCat(null);
@@ -326,7 +368,7 @@ function EventAIPage() {
       setEventDate("");
       setAiPrompt("");
       fetchEvents();
-      void emitActivity({ data: { actor: "EventAI", text: `Provisioned event: ${ev.name}` } });
+      void emitActivity({ data: { actor: "EventAI", text: `Provisioned event: ${ev.name} (${status})` } });
     } catch (err: any) {
       toast.error(err.message || "Failed to create event");
     }
@@ -362,6 +404,22 @@ function EventAIPage() {
   // Change Event status using server function
   const handleStatusChange = async (status: string) => {
     if (!activeEvent || !workspaceId) return;
+
+    if (status === "published") {
+      if (!activeEvent.name?.trim()) {
+        toast.error("Event name is required to publish.");
+        return;
+      }
+      if (!activeEvent.venue?.trim() || activeEvent.venue === "To be announced") {
+        toast.error("Venue address is required to publish.");
+        return;
+      }
+      if (!activeEvent.date) {
+        toast.error("Date & Time is required to publish.");
+        return;
+      }
+    }
+
     try {
       await publishEvent({ data: { eventId: activeEvent.id, workspaceId, status } });
       toast.success(`Event status changed to ${status}`);
@@ -390,9 +448,115 @@ function EventAIPage() {
     }
   };
 
+  // Helper handlers for Event Actions
+  const handleQuickPublish = async (e: any) => {
+    if (!e.name?.trim()) {
+      toast.error("Event name is required to publish.");
+      return;
+    }
+    if (!e.venue?.trim() || e.venue === "To be announced") {
+      toast.error("Venue address is required to publish.");
+      return;
+    }
+    if (!e.date) {
+      toast.error("Date & Time is required to publish.");
+      return;
+    }
+
+    try {
+      await publishEvent({ data: { eventId: e.id, workspaceId: workspaceId!, status: "published" } });
+      toast.success(`Event "${e.name}" published successfully!`);
+      fetchEvents();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to publish event.");
+    }
+  };
+
+  const handleQuickUnpublish = async (e: any) => {
+    try {
+      await publishEvent({ data: { eventId: e.id, workspaceId: workspaceId!, status: "draft" } });
+      toast.success(`Event "${e.name}" reverted to draft status.`);
+      fetchEvents();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to unpublish event.");
+    }
+  };
+
+  const handleQuickArchive = async (e: any) => {
+    try {
+      await publishEvent({ data: { eventId: e.id, workspaceId: workspaceId!, status: "archived" } });
+      toast.success(`Event "${e.name}" archived successfully.`);
+      fetchEvents();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to archive event.");
+    }
+  };
+
+  const handleDuplicate = async (e: any) => {
+    try {
+      const newEv = await duplicateEvent({ data: { eventId: e.id, workspaceId: workspaceId! } });
+      toast.success(`Event duplicated as "${newEv.name}" (Draft).`);
+      fetchEvents();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to duplicate event.");
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!eventToDelete) return;
+    try {
+      await deleteEvent({ data: { eventId: eventToDelete.id, workspaceId: workspaceId! } });
+      toast.success(`Event "${eventToDelete.name}" deleted successfully.`);
+      setDeleteConfirmOpen(false);
+      setEventToDelete(null);
+      if (activeEvent?.id === eventToDelete.id) {
+        setActiveEvent(null);
+      }
+      fetchEvents();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete event.");
+    }
+  };
+
+  const handleEditSubmit = async () => {
+    if (!editEventData) return;
+    if (!editName.trim()) {
+      toast.error("Event name is required.");
+      return;
+    }
+    try {
+      await updateEventDetails({
+        data: {
+          eventId: editEventData.id,
+          workspaceId: workspaceId!,
+          name: editName.trim(),
+          venue: editVenue,
+          date: editDate || undefined,
+          registrationType: editRegType,
+          capacityLimit: editRegType === "capacity" ? editCapLimit : null,
+          approvalMode: editApprovalMode,
+          theme: editTheme
+        }
+      });
+      toast.success("Event details updated successfully!");
+      setEditOpen(false);
+      setEditEventData(null);
+      fetchEvents();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update event.");
+    }
+  };
+
+  const copyEventLink = (e: any) => {
+    if (!e) return;
+    const url = typeof window !== "undefined" ? `${window.location.origin}/e/${e.slug}` : `https://engageai-gold.vercel.app/e/${e.slug}`;
+    navigator.clipboard.writeText(url);
+    toast.success("Registration link copied to clipboard!");
+  };
+
   const copyLandingLink = () => {
     if (!activeEvent) return;
-    const url = `https://engageai.vercel.app/e/${activeEvent.slug}`;
+    const url = typeof window !== "undefined" ? `${window.location.origin}/e/${activeEvent.slug}` : `https://engageai-gold.vercel.app/e/${activeEvent.slug}`;
     navigator.clipboard.writeText(url);
     toast.success("Event landing page link copied to clipboard!");
   };
@@ -618,13 +782,21 @@ function EventAIPage() {
                         </div>
                       </div>
                     </div>
-                    <DialogFooter className="pt-2">
+                    <DialogFooter className="pt-2 flex gap-2 sm:justify-end">
                       <Button 
-                        onClick={handleWizardSubmit} 
+                        variant="outline"
+                        onClick={() => handleWizardSubmit("draft")} 
                         disabled={!workspaceId}
-                        className="w-full bg-gradient-to-r from-primary to-indigo-600"
+                        className="flex-1 sm:flex-none border-border/80 hover:bg-secondary/80 text-foreground"
                       >
-                        Create & Seed Event
+                        Save Draft
+                      </Button>
+                      <Button 
+                        onClick={() => handleWizardSubmit("published")} 
+                        disabled={!workspaceId}
+                        className="flex-1 sm:flex-none bg-gradient-to-r from-emerald-500 to-teal-600 text-white border-none shadow-md hover:from-emerald-600 hover:to-teal-700"
+                      >
+                        Publish Event
                       </Button>
                     </DialogFooter>
                   </div>
@@ -665,23 +837,88 @@ function EventAIPage() {
           ) : (
             <div className="space-y-2">
               {events.map((e) => (
-                <button
+                <div
                   key={e.id}
                   onClick={() => setActiveEvent(e)}
-                  className={`w-full flex items-center justify-between p-4 rounded-xl border text-left transition-all ${
+                  className={`w-full flex items-center justify-between p-4 rounded-xl border text-left cursor-pointer transition-all ${
                     activeEvent?.id === e.id
                       ? "border-primary/50 bg-primary/5 shadow-sm"
                       : "border-border/60 hover:bg-secondary/40"
                   }`}
                 >
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1 pr-2">
                     <h4 className="font-semibold text-sm truncate">{e.name}</h4>
                     <p className="text-[10px] text-muted-foreground truncate mt-0.5">Category: {e.subcategory || "Other"}</p>
+                    <div className="flex items-center gap-1.5 mt-2">
+                      <Badge variant="outline" className={`capitalize text-[9px] px-1.5 py-0 ${
+                        e.status === "published" 
+                          ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 
+                          : e.status === "archived" 
+                            ? "bg-amber-500/10 text-amber-400 border-amber-500/20" 
+                            : "bg-gray-500/10 text-gray-400 border-gray-500/20"
+                      }`}>
+                        {e.status}
+                      </Badge>
+                    </div>
                   </div>
-                  <Badge variant={e.status === "registration_open" ? "default" : "secondary"} className="capitalize text-[10px]">
-                    {e.status?.replace("_", " ") || ""}
-                  </Badge>
-                </button>
+                  <div onClick={(ev) => ev.stopPropagation()}>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="size-7 rounded-lg hover:bg-secondary">
+                          <MoreVertical className="size-4 text-muted-foreground" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-40 bg-popover border border-border p-1 rounded-md shadow-md">
+                        <DropdownMenuItem onClick={() => {
+                          setEditEventData(e);
+                          setEditName(e.name);
+                          setEditVenue(e.venue || "");
+                          setEditDate(e.date ? e.date.slice(0, 16) : "");
+                          setEditRegType(e.registration_type || "unlimited");
+                          setEditCapLimit(e.capacity_limit || 100);
+                          setEditApprovalMode(e.approval_mode || "auto");
+                          setEditTheme(e.theme || "Professional");
+                          setEditOpen(true);
+                        }} className="flex items-center text-xs px-2 py-1.5 rounded hover:bg-secondary cursor-pointer">
+                          <Edit className="size-3.5 mr-2" /> Edit
+                        </DropdownMenuItem>
+                        {e.status !== "published" ? (
+                          <DropdownMenuItem onClick={() => handleQuickPublish(e)} className="flex items-center text-xs px-2 py-1.5 rounded hover:bg-secondary cursor-pointer">
+                            <Globe className="size-3.5 mr-2" /> Publish
+                          </DropdownMenuItem>
+                        ) : (
+                          <DropdownMenuItem onClick={() => handleQuickUnpublish(e)} className="flex items-center text-xs px-2 py-1.5 rounded hover:bg-secondary cursor-pointer">
+                            <Globe className="size-3.5 mr-2" /> Unpublish
+                          </DropdownMenuItem>
+                        )}
+                        {e.status !== "archived" && (
+                          <DropdownMenuItem onClick={() => handleQuickArchive(e)} className="flex items-center text-xs px-2 py-1.5 rounded hover:bg-secondary cursor-pointer">
+                            <Archive className="size-3.5 mr-2" /> Archive
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuItem onClick={() => handleDuplicate(e)} className="flex items-center text-xs px-2 py-1.5 rounded hover:bg-secondary cursor-pointer">
+                          <Copy className="size-3.5 mr-2" /> Duplicate
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => {
+                          setEventToDelete(e);
+                          setDeleteConfirmOpen(true);
+                        }} className="flex items-center text-xs px-2 py-1.5 rounded text-destructive hover:bg-destructive/10 cursor-pointer">
+                          <Trash2 className="size-3.5 mr-2" /> Delete
+                        </DropdownMenuItem>
+                        <div className="h-px bg-border my-1" />
+                        <DropdownMenuItem onClick={() => copyEventLink(e)} className="flex items-center text-xs px-2 py-1.5 rounded hover:bg-secondary cursor-pointer">
+                          <Link2 className="size-3.5 mr-2" /> Copy Link
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => {
+                          setQrEvent(e);
+                          setQrOpen(true);
+                        }} className="flex items-center text-xs px-2 py-1.5 rounded hover:bg-secondary cursor-pointer">
+                          <QrCode className="size-3.5 mr-2" /> View QR
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </div>
               ))}
             </div>
           )}
@@ -955,8 +1192,8 @@ function EventAIPage() {
                         onChange={(e) => handleStatusChange(e.target.value)}
                         className="w-full bg-secondary border border-border h-10 px-2 rounded-lg text-xs text-foreground"
                       >
-                        {["draft", "published", "registration_open", "registration_closed", "ongoing", "completed", "cancelled", "expired"].map(st => (
-                          <option key={st} value={st}>{st.replace("_", " ").toUpperCase()}</option>
+                        {["draft", "published", "archived"].map(st => (
+                          <option key={st} value={st}>{st.toUpperCase()}</option>
                         ))}
                       </select>
                     </div>
@@ -1040,6 +1277,115 @@ function EventAIPage() {
         </div>
 
       </div>
+
+      {/* Edit Event Details Dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-md bg-background border border-border">
+          <DialogHeader>
+            <DialogTitle>Edit Event Details</DialogTitle>
+            <DialogDescription>Modify fields and save updates to your event.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2 text-xs">
+            <div className="space-y-1">
+              <Label htmlFor="edit-name">Event Name</Label>
+              <Input id="edit-name" value={editName} onChange={e => setEditName(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="edit-venue">Venue Address</Label>
+              <Input id="edit-venue" value={editVenue} onChange={e => setEditVenue(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="edit-date">Date & Time</Label>
+              <Input id="edit-date" type="datetime-local" value={editDate} onChange={e => setEditDate(e.target.value)} />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label htmlFor="edit-reg">Registration Type</Label>
+                <select id="edit-reg" value={editRegType} onChange={e => setEditRegType(e.target.value as any)} className="w-full bg-secondary border border-border h-9 rounded px-2 text-sm text-foreground">
+                  <option value="unlimited">Unlimited Seatings</option>
+                  <option value="capacity">Capacity Limit</option>
+                </select>
+              </div>
+              {editRegType === "capacity" && (
+                <div className="space-y-1">
+                  <Label htmlFor="edit-cap">Capacity Limit</Label>
+                  <Input id="edit-cap" type="number" value={editCapLimit} onChange={e => setEditCapLimit(Number(e.target.value))} />
+                </div>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label htmlFor="edit-approve">Approval Mode</Label>
+                <select id="edit-approve" value={editApprovalMode} onChange={e => setEditApprovalMode(e.target.value as any)} className="w-full bg-secondary border border-border h-9 rounded px-2 text-sm text-foreground">
+                  <option value="auto">Auto Approval</option>
+                  <option value="manual">Manual Approval</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="edit-theme">Design Theme</Label>
+                <select id="edit-theme" value={editTheme} onChange={e => setEditTheme(e.target.value)} className="w-full bg-secondary border border-border h-9 rounded px-2 text-sm text-foreground">
+                  {["Professional", "Corporate", "Wedding", "Festival", "Dark", "Minimal"].map(t => (
+                    <option key={t} value={t}>{t} Theme</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
+            <Button onClick={handleEditSubmit} className="bg-primary text-primary-foreground">Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Event Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent className="bg-background border border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the event "{eventToDelete?.name}" and all of its registrants, tickets, and analytics.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-border text-foreground hover:bg-secondary">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteConfirm} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+              Delete Event
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* QR Code Viewer Dialog */}
+      <Dialog open={qrOpen} onOpenChange={setQrOpen}>
+        <DialogContent className="sm:max-w-sm text-center bg-background border border-border">
+          <DialogHeader>
+            <DialogTitle>Event Registration QR Code</DialogTitle>
+            <DialogDescription>Scan this QR code to visit the public registration page.</DialogDescription>
+          </DialogHeader>
+          {qrEvent && (
+            <div className="flex flex-col items-center justify-center py-6 space-y-4">
+              <div className="p-4 bg-white rounded-2xl shadow-sm border">
+                <QRCodeSVG
+                  value={typeof window !== "undefined" ? `${window.location.origin}/e/${qrEvent.slug}` : `https://engageai-gold.vercel.app/e/${qrEvent.slug}`}
+                  size={200}
+                  level="H"
+                  includeMargin={true}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground break-all max-w-[280px]">
+                {typeof window !== "undefined" ? `${window.location.origin}/e/${qrEvent.slug}` : `https://engageai-gold.vercel.app/e/${qrEvent.slug}`}
+              </p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setQrOpen(false)} className="w-full">
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </>
   );
 }

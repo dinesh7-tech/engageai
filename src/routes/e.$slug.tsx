@@ -60,7 +60,7 @@ function PublicEventLanding() {
           return;
         }
 
-        if (!eventData) {
+        if (!eventData || eventData.status !== "published") {
           setLoading(false);
           return;
         }
