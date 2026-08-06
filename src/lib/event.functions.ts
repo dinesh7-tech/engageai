@@ -30,7 +30,7 @@ export interface CreateEventInput {
 export const createEvent = createServerFn({ method: "POST" })
   .inputValidator((input: CreateEventInput) => input)
   .handler(async ({ data }) => {
-    if (!data.workspaceId) {
+    if (!data || !data.workspaceId) {
       throw new Error("Cannot create event: A valid workspace ID is required.");
     }
     console.log("[Event Creation Flow] Step 3: Invoking createEvent() server function. Workspace ID:", data.workspaceId, "Event Name:", data.name);
@@ -117,6 +117,9 @@ export const createEvent = createServerFn({ method: "POST" })
 export const publishEvent = createServerFn({ method: "POST" })
   .inputValidator((input: { eventId: string; workspaceId: string; status: string }) => input)
   .handler(async ({ data }) => {
+    if (!data || !data.workspaceId) {
+      throw new Error("Cannot publish event: A valid workspace ID is required.");
+    }
     const { data: event, error } = await supabase
       .from("events")
       .update({ status: data.status })
@@ -147,7 +150,7 @@ export interface RegisterAttendeeInput {
 export const registerAttendee = createServerFn({ method: "POST" })
   .inputValidator((input: RegisterAttendeeInput) => input)
   .handler(async ({ data }) => {
-    if (!data.workspaceId) {
+    if (!data || !data.workspaceId) {
       throw new Error("Registration failed: A valid workspace ID is required.");
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -217,7 +220,7 @@ export const registerAttendee = createServerFn({ method: "POST" })
 export const checkInAttendee = createServerFn({ method: "POST" })
   .inputValidator((input: { registrationId: string; eventId: string; workspaceId: string; operatorId?: string }) => input)
   .handler(async ({ data }) => {
-    if (!data.workspaceId) {
+    if (!data || !data.workspaceId) {
       throw new Error("Check-in failed: A valid workspace ID is required.");
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -259,7 +262,7 @@ export interface LogAnalyticsInput {
 export const logEventAnalytics = createServerFn({ method: "POST" })
   .inputValidator((input: LogAnalyticsInput) => input)
   .handler(async ({ data }) => {
-    if (!data.workspaceId) {
+    if (!data || !data.workspaceId) {
       throw new Error("Log analytics failed: A valid workspace ID is required.");
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -282,6 +285,9 @@ export const logEventAnalytics = createServerFn({ method: "POST" })
 export const fetchEventAnalytics = createServerFn({ method: "GET" })
   .inputValidator((input: { eventId: string; workspaceId: string }) => input)
   .handler(async ({ data }) => {
+    if (!data || !data.workspaceId) {
+      throw new Error("Cannot fetch analytics: A valid workspace ID is required.");
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const { data: views } = await supabaseAdmin
