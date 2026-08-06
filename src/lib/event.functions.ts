@@ -33,11 +33,12 @@ export const createEvent = createServerFn({ method: "POST" })
     if (!data || !data.workspaceId) {
       throw new Error("Cannot create event: A valid workspace ID is required.");
     }
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     console.log("[Event Creation Flow] Step 3: Invoking createEvent() server function. Workspace ID:", data.workspaceId, "Event Name:", data.name);
 
     // 1. Create the event
     console.log("[Event Creation Flow] Step 4: Executing Supabase insert for event...");
-    const { data: event, error: eventErr } = await supabase
+    const { data: event, error: eventErr } = await supabaseAdmin
       .from("events")
       .insert({
         workspace_id: data.workspaceId,
@@ -74,7 +75,7 @@ export const createEvent = createServerFn({ method: "POST" })
         sort_order: idx
       }));
 
-      const { error: fieldsErr } = await supabase
+      const { error: fieldsErr } = await supabaseAdmin
         .from("event_form_fields")
         .insert(fieldsToInsert);
 
@@ -88,7 +89,7 @@ export const createEvent = createServerFn({ method: "POST" })
         { workspace_id: data.workspaceId, event_id: event.id, field_name: "email", field_label: "Email Address", field_type: "email", required: true, sort_order: 1 },
         { workspace_id: data.workspaceId, event_id: event.id, field_name: "phone", field_label: "WhatsApp Mobile", field_type: "tel", required: true, sort_order: 2 }
       ];
-      await supabase.from("event_form_fields").insert(fallbackFields);
+      await supabaseAdmin.from("event_form_fields").insert(fallbackFields);
     }
 
     // 3. Insert Default Ticket Tier
@@ -103,7 +104,7 @@ export const createEvent = createServerFn({ method: "POST" })
       capacity_limit: data.capacityLimit || null
     }));
 
-    const { error: ticketsErr } = await supabase
+    const { error: ticketsErr } = await supabaseAdmin
       .from("event_tickets")
       .insert(ticketsToInsert);
 
@@ -120,7 +121,8 @@ export const publishEvent = createServerFn({ method: "POST" })
     if (!data || !data.workspaceId) {
       throw new Error("Cannot publish event: A valid workspace ID is required.");
     }
-    const { data: event, error } = await supabase
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: event, error } = await supabaseAdmin
       .from("events")
       .update({ status: data.status })
       .eq("id", data.eventId)
