@@ -77,8 +77,13 @@ ALTER TABLE public.events ADD COLUMN IF NOT EXISTS custom_landing_config jsonb D
 -- Modify check constraint on status column to support new statuses
 -- First, drop the old check constraint if it exists. In multi_tenant_schema it was: CHECK (status IN ('upcoming', 'live', 'completed'))
 ALTER TABLE public.events DROP CONSTRAINT IF EXISTS events_status_check;
+
+-- Map any existing old statuses to the new schema values before adding the constraint
+UPDATE public.events SET status = 'published' WHERE status = 'upcoming';
+UPDATE public.events SET status = 'ongoing' WHERE status = 'live';
+
 ALTER TABLE public.events ADD CONSTRAINT events_status_check CHECK (
-  status IN ('draft', 'published', 'registration_open', 'registration_closed', 'ongoing', 'completed', 'cancelled', 'expired')
+  status IN ('draft', 'published', 'registration_open', 'registration_closed', 'ongoing', 'completed', 'cancelled', 'expired', 'upcoming', 'live')
 );
 
 -- Public SELECT policy for events to allow `/e/$slug` landing page views
