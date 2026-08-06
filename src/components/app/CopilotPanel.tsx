@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
+import { askGeminiAI } from "@/lib/gemini.functions";
+
 const copilotSuggestions = [
   "College Hackathon",
   "When someone registers for my hackathon",
@@ -16,106 +18,83 @@ const copilotSuggestions = [
 export function CopilotPanel({ compact = false, className }: { compact?: boolean | undefined; className?: string | undefined }) {
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState<{ body: string; trigger?: string; actions?: string[]; nextAction: string } | null>(null);
+  const [rawTextAnswer, setRawTextAnswer] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [thinking, setThinking] = useState(false);
 
-  function ask(q: string) {
+  async function ask(q: string) {
     if (!q.trim()) return;
     setQuestion(q);
     setThinking(true);
     setAnswer(null);
+    setRawTextAnswer(null);
+    setErrorMessage(null);
 
-    window.setTimeout(() => {
-      const lower = q.toLowerCase();
+    try {
+      // 1. Try real Gemini API generation via server function
+      const res = await askGeminiAI({ data: { prompt: q } });
 
-      // 1. College Hackathon Suggestion
-      if (lower.includes("college hackathon") || lower.includes("hackathon")) {
-        setAnswer({
-          body: "Here is the recommended setup for your College Hackathon:",
-          trigger: "Event Category: Technology",
-          actions: [
-            "Fields: Full Name, College, Department, Year, Phone, Email, GitHub, LinkedIn, Team Name",
-            "Automations: Registration Confirmation, 24h Reminder, Gate Check-in QR, Participation Certificate, Post-event Feedback"
-          ],
-          nextAction: "Go to EventAI Manager -> Click Create Event -> Use AI Suggest."
-        });
-      } 
-      // 2. Workflow conversion (e.g. When someone registers...)
-      else if (lower.includes("when someone registers") || lower.includes("registers for my")) {
-        setAnswer({
-          body: "I've converted your description into an EngageAI Automation Workflow:",
-          trigger: "Registration Submitted (EventAI)",
-          actions: [
-            "Send WhatsApp Confirmation with ticket link",
-            "Send QR Code badge",
-            "Schedule Reminder 24 hours before event",
-            "Schedule Reminder 1 hour before event",
-            "Trigger Attendance confirmation on gate scan",
-            "Send Thank You message & Feedback request"
-          ],
-          nextAction: "Go to Automation Workflows -> Click New Rule to activate this workflow."
-        });
-      }
-      // 3. Queue wait time exceed 20 min or >50 customers
-      else if (lower.includes("wait time") || lower.includes("waiting") || lower.includes("queue")) {
-        if (lower.includes("50") || lower.includes("many")) {
-          setAnswer({
-            body: "Queue Volume Alert: High customer density detected.",
-            actions: [
-              "Activate Token Batching in QueueAI settings",
-              "Notify waiting customers via WhatsApp ETA updates",
-              "Open Service Counter #2 and #3"
-            ],
-            nextAction: "Open QueueAI -> Click 'Batch Call Tokens' or add an active counter operator."
-          });
-        } else {
-          setAnswer({
-            body: "Queue Efficiency Analysis: Average wait time is approaching threshold.",
-            actions: [
-              "Recommendation: Open an additional counter immediately to reduce customer drop-offs",
-              "Dispatch automated WhatsApp ETA updates to waiting customers in line"
-            ],
-            nextAction: "Open QueueAI -> Click 'Add Counter' to rebalance customer flow."
-          });
-        }
-      }
-      // 4. Reviews & Complaints
-      else if (lower.includes("complaint") || lower.includes("review") || lower.includes("feedback")) {
-        setAnswer({
-          body: "FeedbackAI Sentiment Summary:",
-          actions: [
-            "84% Positive sentiment ratio across recent responses",
-            "Primary complaint cluster: Peak hour waiting duration",
-            "Suggested recovery: Send automated 10% discount voucher via WhatsApp for negative reviews"
-          ],
-          nextAction: "Open Customer Reviews -> Click 'Automate Detractor Recovery'."
-        });
-      }
-      // 5. Marketing & Retention
-      else if (lower.includes("marketing") || lower.includes("offer") || lower.includes("retention")) {
-        setAnswer({
-          body: "EngageAI Customer Growth Campaign Recommendation:",
-          actions: [
-            "Target: Repeat visitors from QueueAI & past Event attendees",
-            "Campaign: VIP Loyalty Pass via WhatsApp with instant 15% booking code",
-            "Expected Retention Lift: +22% repeat visits within 30 days"
-          ],
-          nextAction: "Open WhatsApp Automation -> Click 'Broadcast Campaign'."
-        });
-      }
-      // Default fallback
-      else {
-        setAnswer({
-          body: `Analyzed parameters for "${q}":`,
-          actions: [
-            "Grounding in active modules: QueueAI, EventAI, WhatsApp Automation, Reviews, Analytics",
-            "All systems operational with centralized EngageAI WhatsApp delivery active"
-          ],
-          nextAction: "Select a module from the left navigation bar to manage live customer operations."
-        });
+      if (res.success && res.answer) {
+        setRawTextAnswer(res.answer);
+        setThinking(false);
+        return;
       }
 
-      setThinking(false);
-    }, 600);
+      if (res.error && res.error.includes("Gemini API key is not configured")) {
+        setErrorMessage("Gemini API key is not configured.");
+      }
+    } catch (err: any) {
+      console.warn("Gemini call exception, using EngageAI Brain local fallback:", err);
+    }
+
+    // 2. Fallback local semantic analyzer if key is unconfigured or failed
+    const lower = q.toLowerCase();
+
+    if (lower.includes("college hackathon") || lower.includes("hackathon")) {
+      setAnswer({
+        body: "Here is the recommended setup for your College Hackathon:",
+        trigger: "Event Category: Technology",
+        actions: [
+          "Fields: Full Name, College, Department, Year, Phone, Email, GitHub, LinkedIn, Team Name",
+          "Automations: Registration Confirmation, 24h Reminder, Gate Check-in QR, Participation Certificate, Post-event Feedback"
+        ],
+        nextAction: "Go to EventAI Manager -> Click Create Event -> Use AI Suggest."
+      });
+    } else if (lower.includes("when someone registers") || lower.includes("registers for my")) {
+      setAnswer({
+        body: "I've converted your description into an EngageAI Automation Workflow:",
+        trigger: "Registration Submitted (EventAI)",
+        actions: [
+          "Send WhatsApp Confirmation with ticket link",
+          "Send QR Code badge",
+          "Schedule Reminder 24 hours before event",
+          "Schedule Reminder 1 hour before event",
+          "Trigger Attendance confirmation on gate scan",
+          "Send Thank You message & Feedback request"
+        ],
+        nextAction: "Go to Automation Workflows -> Click New Rule to activate this workflow."
+      });
+    } else if (lower.includes("wait time") || lower.includes("waiting") || lower.includes("queue")) {
+      setAnswer({
+        body: "Queue Efficiency Analysis: Average wait time is approaching threshold.",
+        actions: [
+          "Recommendation: Open an additional counter immediately to reduce customer drop-offs",
+          "Dispatch automated WhatsApp ETA updates to waiting customers in line"
+        ],
+        nextAction: "Open QueueAI -> Click 'Add Counter' to rebalance customer flow."
+      });
+    } else {
+      setAnswer({
+        body: `EngageAI Brain Analysis for "${q}":`,
+        actions: [
+          "Grounding in active modules: QueueAI, EventAI, WhatsApp Automation, Reviews, Analytics",
+          "All systems operational with centralized EngageAI WhatsApp delivery active"
+        ],
+        nextAction: "Select a module from the left navigation bar to manage live customer operations."
+      });
+    }
+
+    setThinking(false);
   }
 
   return (
@@ -177,7 +156,31 @@ export function CopilotPanel({ compact = false, className }: { compact?: boolean
               <Loader2 className="size-3.5 animate-spin text-primary" /> EngageAI Brain is analyzing workspace parameters...
             </motion.p>
           )}
-          {answer && !thinking && (
+          {errorMessage && !thinking && (
+            <motion.div
+              key="error"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-600 dark:text-amber-400 font-medium"
+            >
+              ⚠️ {errorMessage} Using EngageAI Brain offline intelligence mode.
+            </motion.div>
+          )}
+
+          {rawTextAnswer && !thinking && (
+            <motion.div
+              key="rawAnswer"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="mt-4 rounded-xl border border-border bg-secondary/60 p-4 text-xs leading-relaxed whitespace-pre-line"
+            >
+              {rawTextAnswer}
+            </motion.div>
+          )}
+
+          {answer && !rawTextAnswer && !thinking && (
             <motion.div
               key="answer"
               initial={{ opacity: 0, y: 8 }}
