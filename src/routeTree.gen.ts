@@ -26,8 +26,10 @@ import { Route as AppQueueaiRouteImport } from './routes/app.queueai'
 import { Route as AppSettingsRouteImport } from './routes/app.settings'
 import { Route as AppWhatsappRouteImport } from './routes/app.whatsapp'
 import { Route as AppWorkspacesRouteImport } from './routes/app.workspaces'
+import { Route as ESlugRouteImport } from './routes/e.$slug'
 import { Route as JoinSlugRouteImport } from './routes/join.$slug'
 import { Route as PublicSlugRouteImport } from './routes/public.$slug'
+import { Route as TicketTokenRouteImport } from './routes/ticket.$token'
 import { Route as ApiWebhooksWhatsappRouteImport } from './routes/api.webhooks.whatsapp'
 
 const IndexRoute = IndexRouteImport.update({
@@ -115,6 +117,11 @@ const AppWorkspacesRoute = AppWorkspacesRouteImport.update({
   path: '/workspaces',
   getParentRoute: () => AppRoute,
 } as any)
+const ESlugRoute = ESlugRouteImport.update({
+  id: '/e/$slug',
+  path: '/e/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const JoinSlugRoute = JoinSlugRouteImport.update({
   id: '/join/$slug',
   path: '/join/$slug',
@@ -123,6 +130,11 @@ const JoinSlugRoute = JoinSlugRouteImport.update({
 const PublicSlugRoute = PublicSlugRouteImport.update({
   id: '/public/$slug',
   path: '/public/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TicketTokenRoute = TicketTokenRouteImport.update({
+  id: '/ticket/$token',
+  path: '/ticket/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiWebhooksWhatsappRoute = ApiWebhooksWhatsappRouteImport.update({
@@ -148,8 +160,10 @@ export interface FileRoutesByFullPath {
   '/app/settings': typeof AppSettingsRoute
   '/app/whatsapp': typeof AppWhatsappRoute
   '/app/workspaces': typeof AppWorkspacesRoute
+  '/e/$slug': typeof ESlugRoute
   '/join/$slug': typeof JoinSlugRoute
   '/public/$slug': typeof PublicSlugRoute
+  '/ticket/$token': typeof TicketTokenRoute
   '/app/': typeof AppIndexRoute
   '/api/webhooks/whatsapp': typeof ApiWebhooksWhatsappRoute
 }
@@ -169,8 +183,10 @@ export interface FileRoutesByTo {
   '/app/settings': typeof AppSettingsRoute
   '/app/whatsapp': typeof AppWhatsappRoute
   '/app/workspaces': typeof AppWorkspacesRoute
+  '/e/$slug': typeof ESlugRoute
   '/join/$slug': typeof JoinSlugRoute
   '/public/$slug': typeof PublicSlugRoute
+  '/ticket/$token': typeof TicketTokenRoute
   '/app': typeof AppIndexRoute
   '/api/webhooks/whatsapp': typeof ApiWebhooksWhatsappRoute
 }
@@ -192,8 +208,10 @@ export interface FileRoutesById {
   '/app/settings': typeof AppSettingsRoute
   '/app/whatsapp': typeof AppWhatsappRoute
   '/app/workspaces': typeof AppWorkspacesRoute
+  '/e/$slug': typeof ESlugRoute
   '/join/$slug': typeof JoinSlugRoute
   '/public/$slug': typeof PublicSlugRoute
+  '/ticket/$token': typeof TicketTokenRoute
   '/app/': typeof AppIndexRoute
   '/api/webhooks/whatsapp': typeof ApiWebhooksWhatsappRoute
 }
@@ -216,8 +234,10 @@ export interface FileRouteTypes {
     | '/app/settings'
     | '/app/whatsapp'
     | '/app/workspaces'
+    | '/e/$slug'
     | '/join/$slug'
     | '/public/$slug'
+    | '/ticket/$token'
     | '/app/'
     | '/api/webhooks/whatsapp'
   fileRoutesByTo: FileRoutesByTo
@@ -237,8 +257,10 @@ export interface FileRouteTypes {
     | '/app/settings'
     | '/app/whatsapp'
     | '/app/workspaces'
+    | '/e/$slug'
     | '/join/$slug'
     | '/public/$slug'
+    | '/ticket/$token'
     | '/app'
     | '/api/webhooks/whatsapp'
   id:
@@ -259,8 +281,10 @@ export interface FileRouteTypes {
     | '/app/settings'
     | '/app/whatsapp'
     | '/app/workspaces'
+    | '/e/$slug'
     | '/join/$slug'
     | '/public/$slug'
+    | '/ticket/$token'
     | '/app/'
     | '/api/webhooks/whatsapp'
   fileRoutesById: FileRoutesById
@@ -270,8 +294,10 @@ export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   AuthRoute: typeof AuthRoute
   OnboardingRoute: typeof OnboardingRoute
+  ESlugRoute: typeof ESlugRoute
   JoinSlugRoute: typeof JoinSlugRoute
   PublicSlugRoute: typeof PublicSlugRoute
+  TicketTokenRoute: typeof TicketTokenRoute
   ApiWebhooksWhatsappRoute: typeof ApiWebhooksWhatsappRoute
 }
 
@@ -396,6 +422,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppWorkspacesRouteImport
       parentRoute: typeof AppRoute
     }
+    '/e/$slug': {
+      id: '/e/$slug'
+      path: '/e/$slug'
+      fullPath: '/e/$slug'
+      preLoaderRoute: typeof ESlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/join/$slug': {
       id: '/join/$slug'
       path: '/join/$slug'
@@ -408,6 +441,13 @@ declare module '@tanstack/react-router' {
       path: '/public/$slug'
       fullPath: '/public/$slug'
       preLoaderRoute: typeof PublicSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ticket/$token': {
+      id: '/ticket/$token'
+      path: '/ticket/$token'
+      fullPath: '/ticket/$token'
+      preLoaderRoute: typeof TicketTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/webhooks/whatsapp': {
@@ -459,8 +499,10 @@ const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   AuthRoute: AuthRoute,
   OnboardingRoute: OnboardingRoute,
+  ESlugRoute: ESlugRoute,
   JoinSlugRoute: JoinSlugRoute,
   PublicSlugRoute: PublicSlugRoute,
+  TicketTokenRoute: TicketTokenRoute,
   ApiWebhooksWhatsappRoute: ApiWebhooksWhatsappRoute,
 }
 export const routeTree = rootRouteImport

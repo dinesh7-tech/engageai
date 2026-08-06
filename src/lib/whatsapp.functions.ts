@@ -29,23 +29,105 @@ export interface SendWhatsAppResult {
 export const getWhatsAppStatus = createServerFn({ method: "GET" })
   .inputValidator((workspaceId: string) => workspaceId || "")
   .handler(async ({ data: workspaceId }) => {
-    const { getWhatsAppConfig } = await import("./whatsapp");
     const { getWhatsAppStats } = await import("./whatsapp.server");
     const { supabase } = await import("@/integrations/supabase/client");
 
-    const config = await getWhatsAppConfig(workspaceId, supabase);
+    const { data: config } = await supabase
+      .from("whatsapp_configs")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+
     const stats = await getWhatsAppStats(workspaceId);
+    const configured = config && config.verification_status === "verified";
 
     return {
       provider: "Meta WhatsApp Cloud API",
-      configured: config.configured,
-      fromNumber: config.phoneNumber,
-      phoneNumberId: config.phoneId || "—",
-      businessAccountId: config.businessId || "—",
-      webhookStatus: config.configured ? "Active" : "Disconnected",
+      configured,
+      verificationStatus: config?.verification_status || "pending",
+      fromNumber: config?.phone_number || "—",
+      phoneNumberId: config?.phone_number_id || "—",
+      businessAccountId: config?.business_account_id || "—",
+      webhookStatus: config?.webhook_status || "disconnected",
       lastMessage: stats.lastMessage,
       messagesToday: stats.messagesToday,
     };
+  });
+
+export interface SaveWhatsAppConfigInput {
+  workspaceId: string;
+  phoneId: string;
+  businessId: string;
+  verifyToken: string;
+  fromNumber: string;
+  appId: string;
+  appSecret: string;
+  accessToken: string;
+}
+
+export const saveWhatsAppConfig = createServerFn({ method: "POST" })
+  .inputValidator((input: SaveWhatsAppConfigInput) => input)
+  .handler(async ({ data }) => {
+    const { encrypt } = await import("./whatsapp-encryption");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    // 1. Encrypt sensitive fields
+    const encryptedToken = encrypt(data.accessToken);
+    const encryptedSecret = encrypt(data.appSecret);
+
+    // 2. Perform test connection to Meta Graph API
+    const testUrl = `https://graph.facebook.com/v23.0/${data.phoneId}`;
+    try {
+      const response = await fetch(testUrl, {
+        headers: {
+          Authorization: `Bearer ${data.accessToken}`
+        }
+      });
+      const resBody = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(resBody.error?.message || `Meta API returned status ${response.status}`);
+      }
+    } catch (err: any) {
+      // Mark as failed verification if the check fails
+      await supabaseAdmin
+        .from("whatsapp_configs")
+        .upsert({
+          workspace_id: data.workspaceId,
+          access_token: encryptedToken,
+          phone_number_id: data.phoneId,
+          business_account_id: data.businessId,
+          verify_token: data.verifyToken,
+          phone_number: data.fromNumber,
+          app_id: data.appId,
+          app_secret: encryptedSecret,
+          verification_status: "failed",
+          webhook_status: "disconnected"
+        });
+      throw new Error(`Meta API validation failed: ${err.message}`);
+    }
+
+    // 3. Save successfully verified config
+    const { error } = await supabaseAdmin
+      .from("whatsapp_configs")
+      .upsert({
+        workspace_id: data.workspaceId,
+        access_token: encryptedToken,
+        phone_number_id: data.phoneId,
+        business_account_id: data.businessId,
+        verify_token: data.verifyToken,
+        phone_number: data.fromNumber,
+        app_id: data.appId,
+        app_secret: encryptedSecret,
+        verification_status: "verified",
+        webhook_status: "connected"
+      });
+
+    if (error) {
+      throw new Error(`Failed to save config: ${error.message}`);
+    }
+
+    return { success: true };
   });
 
 /** Renders a template and sends it over WhatsApp (or simulates when unconfigured). */
@@ -86,3 +168,4 @@ export const sendWhatsAppMessage = createServerFn({ method: "POST" })
       ...(result.error ? { error: result.error } : {}),
     };
   });
+

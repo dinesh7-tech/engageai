@@ -87,8 +87,7 @@ function QueueAIPage() {
   const businessName = activeWorkspace?.name || "Our Business";
   const workspaceId = activeWorkspace?.id;
 
-  const baseUrl = import.meta.env['VITE_APP_URL'] || window.location.origin;
-  const joinUrl = `${baseUrl}/join/${activeWorkspace?.slug || "biz"}`;
+  const joinUrl = `https://engageai.vercel.app/join/${activeWorkspace?.slug || ""}`;
 
   const copyLink = () => {
     navigator.clipboard.writeText(joinUrl);
@@ -333,7 +332,7 @@ function QueueAIPage() {
           variables: {
             name: cust.customer_name,
             business: businessName,
-            link: `${import.meta.env['VITE_APP_URL'] || window.location.origin}/join/${activeWorkspace?.slug || "biz"}`,
+            link: `https://engageai.vercel.app/join/${activeWorkspace?.slug || ""}`,
           },
           workspaceId: activeWorkspace?.id,
           notify: false,
@@ -393,8 +392,7 @@ function QueueAIPage() {
       templateId: "queue_exit_recovery",
       variables: {
         name: customer.customer_name,
-        business: businessName,
-        link: `https://engageai.app/book/${activeWorkspace?.slug || "biz"}`,
+        link: `https://engageai.vercel.app/join/${activeWorkspace?.slug || ""}`,
       },
     });
   }

@@ -29,15 +29,39 @@ function JoinQueuePortal() {
   const [submitting, setSubmitting] = useState(false);
   const [ticket, setTicket] = useState<any>(null);
 
+  const [error, setError] = useState<string | null>(null);
+
   // Fetch workspace details on mount
   useEffect(() => {
+    setLoading(true);
+    setError(null);
+
+    const currentUrl = typeof window !== "undefined" ? window.location.href : "";
+    console.log("[JoinPortal] Current URL:", currentUrl);
+    console.log("[JoinPortal] Slug:", slug);
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log("[JoinPortal] Current auth session:", session);
+    });
+
     supabase
       .from("workspaces")
       .select("*")
       .eq("slug", slug)
       .maybeSingle()
-      .then(({ data }) => {
-        setWorkspace(data);
+      .then(({ data, error }) => {
+        console.log("[JoinPortal] Database result:", data);
+        if (error) {
+          console.error("[JoinPortal] Supabase error:", error);
+          setError(error.message || JSON.stringify(error));
+        } else {
+          setWorkspace(data);
+        }
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("[JoinPortal] Database fetch exception:", err);
+        setError(err.message || "Failed to query workspace");
         setLoading(false);
       });
   }, [slug]);
@@ -120,6 +144,23 @@ function JoinQueuePortal() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <Loader2 className="size-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <div className="text-center space-y-3 max-w-md w-full">
+          <AlertCircle className="size-12 text-destructive mx-auto" />
+          <h2 className="text-xl font-bold text-destructive">Database Lookup Failed</h2>
+          <p className="text-muted-foreground text-sm">
+            We encountered a database error while looking up the workspace.
+          </p>
+          <div className="bg-destructive/10 border border-destructive/20 text-destructive text-left p-3 rounded-lg text-xs font-mono max-h-40 overflow-auto">
+            {error}
+          </div>
+        </div>
       </div>
     );
   }

@@ -8,10 +8,10 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
+import { decrypt } from "./whatsapp-encryption";
 import {
   sendTextMessage,
   sendTemplateMessage,
-  getWhatsAppConfig,
 } from "./whatsapp";
 
 export type SendOutcome = "sent" | "simulated" | "failed";
@@ -28,7 +28,6 @@ export async function sendWhatsApp(
   workspaceId?: string,
   templateId?: string
 ): Promise<ProviderResult> {
-  // Fall back to a default workspace if none is supplied
   let matchedWorkspaceId = workspaceId;
   if (!matchedWorkspaceId) {
     const { data: firstWs } = await supabase.from("workspaces").select("id").limit(1).single();
@@ -39,10 +38,18 @@ export async function sendWhatsApp(
     return { outcome: "simulated", error: "No workspace available to send message." };
   }
 
-  const config = await getWhatsAppConfig(matchedWorkspaceId, supabase);
+  // Fetch workspace credentials override
+  const { data: config } = await supabase
+    .from("whatsapp_configs")
+    .select("*")
+    .eq("workspace_id", matchedWorkspaceId)
+    .maybeSingle();
 
-  if (!config.configured) {
-    // Simulated delivery
+  // ONLY send if verification status is verified and credentials exist
+  const isConfigured = config && config.verification_status === "verified" && config.access_token && config.phone_number_id;
+
+  if (!isConfigured) {
+    // Simulated delivery when not connected
     await supabase.from("whatsapp_messages").insert({
       workspace_id: matchedWorkspaceId,
       phone: to,
@@ -54,23 +61,23 @@ export async function sendWhatsApp(
     return { outcome: "simulated" };
   }
 
+  // Decrypt token securely on the server
+  const decryptedToken = decrypt(config.access_token);
+
   try {
     let response: any;
     if (templateId) {
-      // Send template formatted components (requires Meta approval matching template variables)
-      // Meta requires parameters nested inside components
       const params = [{ type: "text", text: body }];
       response = await sendTemplateMessage(
         to,
         templateId,
         "en",
         [{ type: "body", parameters: params }],
-        config.phoneId!,
-        config.token!
+        config.phone_number_id,
+        decryptedToken
       );
     } else {
-      // Send text message directly
-      response = await sendTextMessage(to, body, config.phoneId!, config.token!);
+      response = await sendTextMessage(to, body, config.phone_number_id, decryptedToken);
     }
 
     const metaId = response?.messages?.[0]?.id || "";
@@ -100,6 +107,7 @@ export async function sendWhatsApp(
     return { outcome: "failed", error: errorMsg };
   }
 }
+
 
 export async function getWhatsAppStats(workspaceId: string) {
   const todayStart = new Date();
