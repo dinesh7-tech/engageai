@@ -55,11 +55,21 @@ function JoinQueuePortal() {
       console.log("[QueueAI Public Join] Requested workspace slug:", slug);
 
       try {
-        const { data: wsData, error: wsError } = await supabase
+        let { data: wsData, error: wsError } = await supabase
           .from("workspaces")
           .select("*")
           .eq("slug", slug)
           .maybeSingle();
+
+        if (!wsData && !wsError) {
+          // Fallback: search by workspace id or case-insensitive slug
+          const { data: fallbackWs } = await supabase
+            .from("workspaces")
+            .select("*")
+            .ilike("slug", slug)
+            .maybeSingle();
+          if (fallbackWs) wsData = fallbackWs;
+        }
 
         console.log("[QueueAI Public Join] Workspace lookup result:", { data: wsData, error: wsError });
         if (wsError) {

@@ -11,7 +11,7 @@ export const Route = createFileRoute("/api/webhooks/whatsapp")({
         const token = url.searchParams.get("hub.verify_token");
         const challenge = url.searchParams.get("hub.challenge");
 
-        const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
+        const verifyToken = process.env["WHATSAPP_VERIFY_TOKEN"];
 
         if (mode === "subscribe" && token === verifyToken) {
           return new Response(challenge, {
@@ -23,7 +23,7 @@ export const Route = createFileRoute("/api/webhooks/whatsapp")({
       },
       POST: async ({ request }) => {
         const signature = request.headers.get("x-hub-signature-256") || "";
-        const appSecret = process.env.WHATSAPP_APP_SECRET || process.env.META_APP_SECRET || "";
+        const appSecret = process.env["WHATSAPP_APP_SECRET"] || process.env["META_APP_SECRET"] || "";
         const rawBody = await request.text();
 
         // 1. Signature Verification

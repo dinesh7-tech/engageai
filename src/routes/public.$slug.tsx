@@ -41,6 +41,7 @@ function PublicBusinessPortal() {
       if (actionType === "queue") {
         const { error } = await supabase.from("queue_entries").insert({
           workspace_id: workspace.id,
+          token: `Q-${Math.floor(1000 + Math.random() * 9000)}`,
           customer_name: fullName.trim(),
           customer_phone: phoneNumber.trim(),
           status: "waiting",

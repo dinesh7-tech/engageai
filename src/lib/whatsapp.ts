@@ -23,11 +23,11 @@ export async function getWhatsAppConfig(workspaceId: string, supabaseClient: any
     .eq("workspace_id", workspaceId)
     .maybeSingle();
 
-  const token = data?.access_token || process.env.WHATSAPP_ACCESS_TOKEN;
-  const phoneId = data?.phone_number_id || process.env.WHATSAPP_PHONE_NUMBER_ID;
-  const businessId = data?.business_account_id || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
-  const verifyToken = data?.verify_token || process.env.WHATSAPP_VERIFY_TOKEN;
-  const phoneNumber = data?.phone_number || process.env.WHATSAPP_FROM_NUMBER || "+14155238886";
+  const token = data?.access_token || process.env["WHATSAPP_ACCESS_TOKEN"];
+  const phoneId = data?.phone_number_id || process.env["WHATSAPP_PHONE_NUMBER_ID"];
+  const businessId = data?.business_account_id || process.env["WHATSAPP_BUSINESS_ACCOUNT_ID"];
+  const verifyToken = data?.verify_token || process.env["WHATSAPP_VERIFY_TOKEN"];
+  const phoneNumber = data?.phone_number || process.env["WHATSAPP_FROM_NUMBER"] || "+14155238886";
 
   return {
     configured: Boolean(token && phoneId),

@@ -145,7 +145,8 @@ function PublicTicketPortal() {
           console.log("[Realtime Ticket Sync] Live update received:", payload.new);
           if (payload.new) {
             setRegistration((prev: any) => {
-              if (prev && prev.status === "Pending" && payload.new.status === "Approved") {
+              const updatedStatus = (payload.new as any)?.status;
+              if (prev && prev.status === "Pending" && updatedStatus === "Approved") {
                 setJustApproved(true);
                 toast.success("Congratulations! Your registration has been approved!");
               }
@@ -456,95 +457,112 @@ END:VCALENDAR`;
                 {isPending ? "PENDING APPROVAL • NOT VALID FOR ENTRY" : isRejected ? "REJECTED • DISABLED" : "VERIFIED PASS • ENGAGEAI"}
               </div>
 
-              {/* PENDING APPROVAL LOCK STATE */}
-              {isPending && (
-                <div className="relative flex flex-col items-center text-center space-y-4 py-4 w-full">
-                  {/* Heavy Blurred QR Mock with Shimmer Glow */}
-                  <div className="relative size-44 rounded-2xl p-4 bg-white flex items-center justify-center overflow-hidden border border-amber-500/30">
-                    <div className="filter blur-md opacity-40 select-none pointer-events-none size-full flex items-center justify-center">
-                      <QRCodeSVG value="LOCKED_PENDING_APPROVAL" size={140} level="M" />
+              <AnimatePresence mode="wait">
+                {/* PENDING APPROVAL LOCK STATE */}
+                {isPending && (
+                  <motion.div 
+                    key="pending-state"
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ filter: "blur(20px)", opacity: 0, scale: 1.05 }}
+                    transition={{ duration: 0.6 }}
+                    className="relative flex flex-col items-center text-center space-y-4 py-4 w-full"
+                  >
+                    {/* Heavy Blurred QR Mock with Shimmer Glow */}
+                    <div className="relative size-44 rounded-2xl p-4 bg-white flex items-center justify-center overflow-hidden border border-amber-500/40 shadow-xl shadow-amber-500/10">
+                      <div className="filter blur-lg opacity-30 select-none pointer-events-none size-full flex items-center justify-center">
+                        <QRCodeSVG value="LOCKED_PENDING_APPROVAL" size={140} level="M" />
+                      </div>
+
+                      {/* Animated Glow / Shimmer overlay */}
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-amber-400/30 to-transparent animate-shimmer" />
+
+                      {/* Central Lock Icon Badge with Pulse */}
+                      <div className="absolute size-14 rounded-2xl bg-zinc-900/90 border border-amber-500/60 flex flex-col items-center justify-center text-amber-400 shadow-2xl backdrop-blur-md">
+                        <Lock className="size-6 animate-pulse" />
+                      </div>
                     </div>
 
-                    {/* Animated Glow / Shimmer overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-amber-400/20 to-transparent animate-shimmer" />
-
-                    {/* Central Lock Icon Badge */}
-                    <div className="absolute size-14 rounded-2xl bg-zinc-900/90 border border-amber-500/50 flex flex-col items-center justify-center text-amber-400 shadow-xl backdrop-blur-md">
-                      <Lock className="size-6 animate-pulse" />
+                    <div className="space-y-1">
+                      <h3 className="text-sm font-bold text-amber-300 flex items-center justify-center gap-1.5">
+                        <Sparkles className="size-4 text-amber-400 animate-spin-slow" /> Awaiting Organizer Approval
+                      </h3>
+                      <p className="text-xs text-zinc-400 max-w-[260px] leading-relaxed">
+                        Your QR entry code will automatically unlock in real-time as soon as your registration is approved.
+                      </p>
                     </div>
-                  </div>
+                  </motion.div>
+                )}
 
-                  <div className="space-y-1">
-                    <h3 className="text-sm font-bold text-amber-300 flex items-center justify-center gap-1.5">
-                      <Sparkles className="size-4 text-amber-400" /> Awaiting Organizer Approval
-                    </h3>
-                    <p className="text-xs text-zinc-400 max-w-[260px] leading-relaxed">
-                      Your QR entry code will automatically unlock in real-time as soon as your registration is approved.
+                {/* REJECTED STATE (WITH SHAKE ANIMATION) */}
+                {isRejected && (
+                  <motion.div 
+                    key="rejected-state"
+                    initial={{ scale: 0.9, opacity: 0, x: [0, -10, 10, -10, 10, 0] }}
+                    animate={{ scale: 1, opacity: 1, x: [0, -8, 8, -6, 6, 0] }}
+                    transition={{ duration: 0.5, ease: "easeOut" }}
+                    className="flex flex-col items-center text-center space-y-3 py-4 w-full"
+                  >
+                    <div className="size-20 rounded-full bg-rose-500/15 border border-rose-500/40 flex items-center justify-center text-rose-400 shadow-xl shadow-rose-500/20">
+                      <XCircle className="size-10 text-rose-500 animate-pulse" />
+                    </div>
+                    <h3 className="text-base font-bold text-rose-400">Registration Rejected</h3>
+                    <p className="text-xs text-zinc-400 max-w-[280px]">
+                      This registration has been declined by the organizer. The pass is permanently disabled.
                     </p>
-                  </div>
-                </div>
-              )}
+                    {registration.rejection_reason && (
+                      <div className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-3 w-full text-left">
+                        <span className="text-[10px] text-rose-300 font-semibold uppercase block mb-0.5">Reason</span>
+                        <span className="text-xs text-zinc-300">{registration.rejection_reason}</span>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
 
-              {/* REJECTED STATE */}
-              {isRejected && (
-                <motion.div 
-                  initial={{ scale: 0.9, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  className="flex flex-col items-center text-center space-y-3 py-4 w-full"
-                >
-                  <div className="size-20 rounded-full bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 shadow-lg shadow-rose-500/10">
-                    <XCircle className="size-10 animate-bounce" />
-                  </div>
-                  <h3 className="text-base font-bold text-rose-400">Registration Rejected</h3>
-                  <p className="text-xs text-zinc-400 max-w-[280px]">
-                    This registration has been declined by the organizer. The pass is permanently disabled.
-                  </p>
-                  {registration.rejection_reason && (
-                    <div className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-3 w-full text-left">
-                      <span className="text-[10px] text-rose-300 font-semibold uppercase block mb-0.5">Reason</span>
-                      <span className="text-xs text-zinc-300">{registration.rejection_reason}</span>
+                {/* APPROVED ACTIVE QR STATE (SMOOTH REVEAL ANIMATION: BLUR -> GLOW -> FADE -> CRYSTAL CLEAR) */}
+                {isApproved && (
+                  <motion.div 
+                    key="approved-state"
+                    initial={{ filter: "blur(12px)", opacity: 0, scale: 0.9 }}
+                    animate={{ filter: "blur(0px)", opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+                    className="flex flex-col items-center text-center w-full"
+                  >
+                    {/* Checked in Banner if verified */}
+                    {isCheckedIn && (
+                      <motion.div 
+                        initial={{ scale: 0.9, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className="mb-4 w-full py-2 bg-emerald-500/20 border border-emerald-500/40 rounded-xl flex items-center justify-center gap-2 text-emerald-300 text-xs font-bold"
+                      >
+                        <CheckCircle2 className="size-4 text-emerald-400" />
+                        <span>✓ Successfully Checked In</span>
+                      </motion.div>
+                    )}
+
+                    <div className="relative p-4 bg-white rounded-2xl border border-white/20 shadow-2xl flex flex-col items-center group overflow-hidden">
+                      {/* Green Glow Accent ring */}
+                      <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-400 rounded-3xl blur opacity-25 group-hover:opacity-40 transition duration-500" />
+                      
+                      <div className="relative z-10 bg-white rounded-xl p-1 flex flex-col items-center">
+                        <QRCodeSVG
+                          value={qrEncryptedPayload}
+                          size={170}
+                          level="H"
+                          includeMargin={true}
+                        />
+                        <span className="text-[10px] font-mono text-zinc-500 mt-2 select-all tracking-wider font-semibold">
+                          {registration.ticket_token}
+                        </span>
+                      </div>
                     </div>
-                  )}
-                </motion.div>
-              )}
 
-              {/* APPROVED ACTIVE QR STATE (WITH UNLOCK ANIMATION) */}
-              {isApproved && (
-                <motion.div 
-                  initial={{ scale: 0.8, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ duration: 0.5, ease: "easeOut" }}
-                  className="flex flex-col items-center text-center w-full"
-                >
-                  {/* Checked in Banner if verified */}
-                  {isCheckedIn && (
-                    <motion.div 
-                      initial={{ scale: 0.9, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      className="mb-4 w-full py-2 bg-emerald-500/20 border border-emerald-500/40 rounded-xl flex items-center justify-center gap-2 text-emerald-300 text-xs font-bold"
-                    >
-                      <CheckCircle2 className="size-4 text-emerald-400" />
-                      <span>✓ Successfully Checked In</span>
-                    </motion.div>
-                  )}
-
-                  <div className="p-4 bg-white rounded-2xl border border-white/20 shadow-2xl flex flex-col items-center">
-                    <QRCodeSVG
-                      value={qrEncryptedPayload}
-                      size={170}
-                      level="H"
-                      includeMargin={true}
-                    />
-                    <span className="text-[10px] font-mono text-zinc-500 mt-2 select-all tracking-wider">
-                      {registration.ticket_token}
-                    </span>
-                  </div>
-
-                  <p className="text-[11px] text-zinc-400 mt-3 flex items-center gap-1">
-                    <ShieldAlert className="size-3.5 text-indigo-400" /> Present this QR at entrance for check-in scan
-                  </p>
-                </motion.div>
-              )}
+                    <p className="text-[11px] text-zinc-400 mt-3 flex items-center gap-1">
+                      <ShieldAlert className="size-3.5 text-indigo-400" /> Present this QR at entrance for check-in scan
+                    </p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             {/* STEPPER TIMELINE */}

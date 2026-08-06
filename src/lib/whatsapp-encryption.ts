@@ -1,7 +1,7 @@
 import { createHash, randomBytes, createCipheriv, createDecipheriv } from "crypto";
 
 // Use META_APP_SECRET from process.env as the base key; fallback to a secure default if undefined
-const rawKey = process.env.META_APP_SECRET || "default_engageai_crypt_secret_key_32_bytes";
+const rawKey = process.env["META_APP_SECRET"] || "default_engageai_crypt_secret_key_32_bytes";
 const ENCRYPTION_KEY = createHash("sha256").update(rawKey).digest(); // 32 bytes key
 
 /**

@@ -39,8 +39,9 @@ export const getWhatsAppStatus = createServerFn({ method: "GET" })
       .maybeSingle();
 
     const stats = await getWhatsAppStats(workspaceId);
-    const hasCustomConfig = config && config.verification_status === "verified";
-    const hasCentralConfig = Boolean(process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID);
+    const configStatus = (config as any)?.verification_status;
+    const hasCustomConfig = config && configStatus === "verified";
+    const hasCentralConfig = Boolean(process.env["WHATSAPP_ACCESS_TOKEN"] && process.env["WHATSAPP_PHONE_NUMBER_ID"]);
     const configured = Boolean(hasCustomConfig || hasCentralConfig);
     const mode = hasCustomConfig ? "Custom Workspace Account" : hasCentralConfig ? "EngageAI Shared Account" : "Simulation Mode";
 
@@ -48,10 +49,10 @@ export const getWhatsAppStatus = createServerFn({ method: "GET" })
       provider: "Meta WhatsApp Cloud API",
       configured,
       mode,
-      verificationStatus: hasCustomConfig ? "verified" : hasCentralConfig ? "verified" : (config?.verification_status || "pending"),
-      fromNumber: hasCustomConfig ? config?.phone_number : (process.env.WHATSAPP_FROM_NUMBER || "+14155238886"),
-      phoneNumberId: hasCustomConfig ? config?.phone_number_id : (process.env.WHATSAPP_PHONE_NUMBER_ID || "—"),
-      businessAccountId: hasCustomConfig ? config?.business_account_id : (process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || "—"),
+      verificationStatus: hasCustomConfig ? "verified" : hasCentralConfig ? "verified" : (configStatus || "pending"),
+      fromNumber: hasCustomConfig ? config?.phone_number : (process.env["WHATSAPP_FROM_NUMBER"] || "+14155238886"),
+      phoneNumberId: hasCustomConfig ? config?.phone_number_id : (process.env["WHATSAPP_PHONE_NUMBER_ID"] || "—"),
+      businessAccountId: hasCustomConfig ? config?.business_account_id : (process.env["WHATSAPP_BUSINESS_ACCOUNT_ID"] || "—"),
       webhookStatus: configured ? "connected" : "disconnected",
       lastMessage: stats.lastMessage,
       messagesToday: stats.messagesToday,
@@ -94,8 +95,8 @@ export const saveWhatsAppConfig = createServerFn({ method: "POST" })
       }
     } catch (err: any) {
       // Mark as failed verification if the check fails
-      await supabaseAdmin
-        .from("whatsapp_configs")
+      await (supabaseAdmin
+        .from("whatsapp_configs") as any)
         .upsert({
           workspace_id: data.workspaceId,
           access_token: encryptedToken,
@@ -112,8 +113,8 @@ export const saveWhatsAppConfig = createServerFn({ method: "POST" })
     }
 
     // 3. Save successfully verified config
-    const { error } = await supabaseAdmin
-      .from("whatsapp_configs")
+    const { error } = await (supabaseAdmin
+      .from("whatsapp_configs") as any)
       .upsert({
         workspace_id: data.workspaceId,
         access_token: encryptedToken,

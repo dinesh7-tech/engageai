@@ -344,9 +344,8 @@ function EventAIPage() {
         data: {
           workspaceId,
           name: eventName.trim(),
-          venue: eventVenue || "To be announced",
-          date: eventDate || undefined,
-          categoryId: null, // Scoped custom reference if any
+          ...(eventVenue ? { venue: eventVenue } : {}),
+          ...(eventDate ? { date: eventDate } : {}),
           subcategory: selectedTemplate?.name || "Custom Event",
           registrationType: regType,
           capacityLimit: regType === "capacity" ? capLimit : null,

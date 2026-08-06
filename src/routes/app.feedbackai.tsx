@@ -214,13 +214,13 @@ function FeedbackAIPage() {
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
-          { label: "Feedback received", value: String(feedbackList.length), icon: ThumbsUp, hint: "responses" },
-          { label: "Pending followups", value: String(pendingCount), hint: "requires action", icon: Frown },
-          { label: "Sentiment score", value: feedbackList.length > 0 ? `${((feedbackList.filter(f => f.sentiment === "positive").length / feedbackList.length) * 100).toFixed(0)}%` : "0%", icon: Smile, hint: "positive ratio" },
-          { label: "Average rating", value: `${avgRating} / 5`, icon: StarIcon, hint: "customer score" },
+          { label: "Feedback received", value: String(feedbackList.length), icon: ThumbsUp as any, hint: "responses" },
+          { label: "Pending followups", value: String(pendingCount), hint: "requires action", icon: Frown as any },
+          { label: "Sentiment score", value: feedbackList.length > 0 ? `${((feedbackList.filter(f => f.sentiment === "positive").length / feedbackList.length) * 100).toFixed(0)}%` : "0%", icon: Smile as any, hint: "positive ratio" },
+          { label: "Average rating", value: `${avgRating} / 5`, icon: StarIcon as any, hint: "customer score" },
         ].map((s, i) => (
           <motion.div key={s.label} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}>
-            <StatCard {...s} />
+            <StatCard label={s.label} value={s.value} icon={s.icon} hint={s.hint} />
           </motion.div>
         ))}
       </div>

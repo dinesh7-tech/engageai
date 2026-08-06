@@ -141,7 +141,7 @@ export function useActiveWorkspace() {
     const { WorkspaceProvisioningService } = await import("@/lib/provisioning");
     
     // Ensure profile exists first
-    await WorkspaceProvisioningService.ensureProfile(user.id, user.user_metadata?.full_name || "");
+    await WorkspaceProvisioningService.ensureProfile(user.id, user.user_metadata?.["full_name"] || "");
     
     const wsId = await WorkspaceProvisioningService.provisionWorkspace({
       userId: user.id,

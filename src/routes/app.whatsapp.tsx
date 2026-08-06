@@ -104,14 +104,16 @@ function WhatsAppPage() {
     setConnecting(true);
     try {
       await saveWhatsAppConfig({
-        workspaceId: activeWorkspace?.id,
-        phoneId: phoneId.trim(),
-        businessId: businessId.trim(),
-        accessToken: accessToken.trim(),
-        appId: appId.trim(),
-        appSecret: appSecret.trim(),
-        verifyToken: verifyToken.trim(),
-        fromNumber: fromNumber.trim()
+        data: {
+          workspaceId: activeWorkspace.id,
+          phoneId: phoneId.trim(),
+          businessId: businessId.trim(),
+          accessToken: accessToken.trim(),
+          appId: appId.trim(),
+          appSecret: appSecret.trim(),
+          verifyToken: verifyToken.trim(),
+          fromNumber: fromNumber.trim()
+        }
       });
 
       toast.success("WhatsApp Business Account verified and connected successfully!");
@@ -149,7 +151,7 @@ function WhatsAppPage() {
         event: "Sample Event",
         date: "Today",
         venue: "Main Hall",
-        link: `https://engageai.vercel.app/join/${activeWorkspace?.slug || ""}`,
+        link: `${typeof window !== "undefined" ? window.location.origin : "https://engageai.vercel.app"}/join/${activeWorkspace?.slug || ""}`,
         issue: "waiting time",
       },
       workspaceId: activeWorkspace?.id,

@@ -48,14 +48,15 @@ export async function sendWhatsApp(
   let targetPhoneId: string | undefined;
   let targetToken: string | undefined;
 
-  if (config && config.verification_status === "verified" && config.access_token && config.phone_number_id) {
+  const configStatus = (config as any)?.verification_status;
+  if (config && configStatus === "verified" && config.access_token && config.phone_number_id) {
     // 1. Workspace specific custom account override
     targetPhoneId = config.phone_number_id;
     targetToken = decrypt(config.access_token);
-  } else if (process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID) {
+  } else if (process.env["WHATSAPP_ACCESS_TOKEN"] && process.env["WHATSAPP_PHONE_NUMBER_ID"]) {
     // 2. Fallback to Central Platform EngageAI WhatsApp Business Account
-    targetPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-    targetToken = process.env.WHATSAPP_ACCESS_TOKEN;
+    targetPhoneId = process.env["WHATSAPP_PHONE_NUMBER_ID"];
+    targetToken = process.env["WHATSAPP_ACCESS_TOKEN"];
   }
 
   if (!targetPhoneId || !targetToken) {
@@ -134,8 +135,9 @@ export async function getWhatsAppStats(workspaceId: string) {
     .limit(1)
     .maybeSingle();
 
+  const msgContent = lastMsg?.message as any;
   return {
     messagesToday: messagesToday || 0,
-    lastMessage: lastMsg?.message?.body || lastMsg?.message?.text?.body || "—",
+    lastMessage: msgContent?.body || msgContent?.text?.body || "—",
   };
 }

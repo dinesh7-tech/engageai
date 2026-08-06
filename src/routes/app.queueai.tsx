@@ -87,7 +87,8 @@ function QueueAIPage() {
   const businessName = activeWorkspace?.name || "Our Business";
   const workspaceId = activeWorkspace?.id;
 
-  const joinUrl = `https://engageai.vercel.app/join/${activeWorkspace?.slug || ""}`;
+  const baseUrl = typeof window !== "undefined" ? window.location.origin : "https://engageai.vercel.app";
+  const joinUrl = `${baseUrl}/join/${activeWorkspace?.slug || ""}`;
 
   const copyLink = () => {
     navigator.clipboard.writeText(joinUrl);

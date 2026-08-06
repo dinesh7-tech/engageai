@@ -103,7 +103,7 @@ export async function dispatchWhatsApp(options: DispatchOptions): Promise<SendWh
         templateId: options.templateId,
         variables: options.variables ?? {},
         ...(options.body ? { body: options.body } : {}),
-        workspaceId: options.workspaceId,
+        ...(options.workspaceId ? { workspaceId: options.workspaceId } : {}),
       },
     });
 

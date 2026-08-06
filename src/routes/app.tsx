@@ -17,6 +17,7 @@ import {
   Workflow,
   MessageCircle,
   Loader2,
+  LogOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -104,7 +105,14 @@ import { useEffect } from "react";
 
 function SidebarInner({ onNavigate, unread }: { onNavigate?: (() => void) | undefined; unread: number }) {
   const { activeWorkspace } = useActiveWorkspace();
-  const { profile, initials, user } = useAuth();
+  const { profile, initials, user, signOut } = useAuth();
+  const navigate = useNavigate();
+
+  const handleSignOut = async () => {
+    await signOut();
+    if (onNavigate) onNavigate();
+    navigate({ to: "/auth" });
+  };
 
   return (
     <div className="flex h-full flex-col bg-sidebar">
@@ -114,16 +122,24 @@ function SidebarInner({ onNavigate, unread }: { onNavigate?: (() => void) | unde
         </Link>
       </div>
       <NavList onNavigate={onNavigate} unread={unread} />
-      <div className="border-t border-sidebar-border p-3">
+      <div className="border-t border-sidebar-border p-3 space-y-2">
         <div className="flex items-center gap-3 rounded-lg px-2 py-2">
           <Avatar className="size-8">
             <AvatarFallback className="bg-accent text-xs text-foreground">{initials}</AvatarFallback>
           </Avatar>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium">{profile?.full_name || user?.email || "User"}</p>
             <p className="truncate text-xs text-muted-foreground">{activeWorkspace?.name || "No Workspace"}</p>
           </div>
         </div>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="w-full gap-2 text-xs font-semibold text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+          onClick={handleSignOut}
+        >
+          <LogOut className="size-3.5" /> Sign Out
+        </Button>
       </div>
     </div>
   );
@@ -208,6 +224,20 @@ function AppLayout() {
                 <Activity className="size-4" /> Ask EngageAI
               </Button>
             </Link>
+            <Button
+              variant="outline"
+              size="sm"
+              className="ml-1 gap-1.5 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+              onClick={async () => {
+                const { supabase } = await import("@/integrations/supabase/client");
+                await supabase.auth.signOut();
+                navigate({ to: "/auth" });
+              }}
+              title="Sign Out"
+            >
+              <LogOut className="size-3.5" />
+              <span className="hidden sm:inline">Logout</span>
+            </Button>
           </div>
         </header>
 
