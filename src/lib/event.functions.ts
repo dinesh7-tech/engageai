@@ -1,6 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 
+const getAdminClient = async () => {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  return supabaseAdmin as any;
+};
+
 // Cryptographically secure or simple random token generator for tickets
 function generateTicketToken(): string {
   const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -33,7 +38,7 @@ export const createEvent = createServerFn({ method: "POST" })
     if (!data || !data.workspaceId) {
       throw new Error("Cannot create event: A valid workspace ID is required.");
     }
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const supabaseAdmin = await getAdminClient();
     console.log("[Event Creation Flow] Step 3: Invoking createEvent() server function. Workspace ID:", data.workspaceId, "Event Name:", data.name);
 
     // 1. Create the event
@@ -121,7 +126,7 @@ export const publishEvent = createServerFn({ method: "POST" })
     if (!data || !data.workspaceId) {
       throw new Error("Cannot publish event: A valid workspace ID is required.");
     }
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const supabaseAdmin = await getAdminClient();
     const { data: event, error } = await supabaseAdmin
       .from("events")
       .update({ status: data.status })
@@ -155,7 +160,7 @@ export const registerAttendee = createServerFn({ method: "POST" })
     if (!data || !data.workspaceId) {
       throw new Error("Registration failed: A valid workspace ID is required.");
     }
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const supabaseAdmin = await getAdminClient();
 
     // Check capacity limit if capacity is checked
     const { data: event } = await supabaseAdmin
@@ -225,7 +230,7 @@ export const checkInAttendee = createServerFn({ method: "POST" })
     if (!data || !data.workspaceId) {
       throw new Error("Check-in failed: A valid workspace ID is required.");
     }
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const supabaseAdmin = await getAdminClient();
 
     // 1. Update registration checked_in status
     const { error: regErr } = await supabaseAdmin
@@ -267,7 +272,7 @@ export const logEventAnalytics = createServerFn({ method: "POST" })
     if (!data || !data.workspaceId) {
       throw new Error("Log analytics failed: A valid workspace ID is required.");
     }
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const supabaseAdmin = await getAdminClient();
     
     await supabaseAdmin
       .from("event_analytics")
@@ -290,7 +295,7 @@ export const fetchEventAnalytics = createServerFn({ method: "GET" })
     if (!data || !data.workspaceId) {
       throw new Error("Cannot fetch analytics: A valid workspace ID is required.");
     }
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const supabaseAdmin = await getAdminClient();
 
     const { data: views } = await supabaseAdmin
       .from("event_analytics")
