@@ -21,10 +21,10 @@ export const askGeminiAI = createServerFn({ method: "POST" })
 
 export const checkGeminiStatus = createServerFn({ method: "GET" })
   .handler(async () => {
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env['GEMINI_API_KEY'];
     const configured = Boolean(apiKey && apiKey.trim().length > 0);
     return {
       configured,
-      model: process.env.AI_MODEL || "gemini-2.5-flash",
+      model: process.env['AI_MODEL'] || "gemini-2.5-flash",
     };
   });

@@ -12,12 +12,12 @@ export interface GeminiGenerateOptions {
 }
 
 export async function generateWithGemini(options: GeminiGenerateOptions): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env['GEMINI_API_KEY'];
   if (!apiKey || !apiKey.trim()) {
     throw new Error("Gemini API key is not configured.");
   }
 
-  const model = process.env.AI_MODEL || "gemini-2.5-flash";
+  const model = process.env['AI_MODEL'] || "gemini-2.5-flash";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
   const requestBody: any = {
