@@ -45,11 +45,21 @@ export async function sendWhatsApp(
     .eq("workspace_id", matchedWorkspaceId)
     .maybeSingle();
 
-  // ONLY send if verification status is verified and credentials exist
-  const isConfigured = config && config.verification_status === "verified" && config.access_token && config.phone_number_id;
+  let targetPhoneId: string | undefined;
+  let targetToken: string | undefined;
 
-  if (!isConfigured) {
-    // Simulated delivery when not connected
+  if (config && config.verification_status === "verified" && config.access_token && config.phone_number_id) {
+    // 1. Workspace specific custom account override
+    targetPhoneId = config.phone_number_id;
+    targetToken = decrypt(config.access_token);
+  } else if (process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID) {
+    // 2. Fallback to Central Platform EngageAI WhatsApp Business Account
+    targetPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+    targetToken = process.env.WHATSAPP_ACCESS_TOKEN;
+  }
+
+  if (!targetPhoneId || !targetToken) {
+    // Simulated delivery when no credentials exist anywhere
     await supabase.from("whatsapp_messages").insert({
       workspace_id: matchedWorkspaceId,
       phone: to,
@@ -61,9 +71,6 @@ export async function sendWhatsApp(
     return { outcome: "simulated" };
   }
 
-  // Decrypt token securely on the server
-  const decryptedToken = decrypt(config.access_token);
-
   try {
     let response: any;
     if (templateId) {
@@ -73,11 +80,11 @@ export async function sendWhatsApp(
         templateId,
         "en",
         [{ type: "body", parameters: params }],
-        config.phone_number_id,
-        decryptedToken
+        targetPhoneId,
+        targetToken
       );
     } else {
-      response = await sendTextMessage(to, body, config.phone_number_id, decryptedToken);
+      response = await sendTextMessage(to, body, targetPhoneId, targetToken);
     }
 
     const metaId = response?.messages?.[0]?.id || "";

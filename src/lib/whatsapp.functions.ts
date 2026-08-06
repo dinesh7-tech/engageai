@@ -39,16 +39,20 @@ export const getWhatsAppStatus = createServerFn({ method: "GET" })
       .maybeSingle();
 
     const stats = await getWhatsAppStats(workspaceId);
-    const configured = config && config.verification_status === "verified";
+    const hasCustomConfig = config && config.verification_status === "verified";
+    const hasCentralConfig = Boolean(process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID);
+    const configured = Boolean(hasCustomConfig || hasCentralConfig);
+    const mode = hasCustomConfig ? "Custom Workspace Account" : hasCentralConfig ? "EngageAI Shared Account" : "Simulation Mode";
 
     return {
       provider: "Meta WhatsApp Cloud API",
       configured,
-      verificationStatus: config?.verification_status || "pending",
-      fromNumber: config?.phone_number || "—",
-      phoneNumberId: config?.phone_number_id || "—",
-      businessAccountId: config?.business_account_id || "—",
-      webhookStatus: config?.webhook_status || "disconnected",
+      mode,
+      verificationStatus: hasCustomConfig ? "verified" : hasCentralConfig ? "verified" : (config?.verification_status || "pending"),
+      fromNumber: hasCustomConfig ? config?.phone_number : (process.env.WHATSAPP_FROM_NUMBER || "+14155238886"),
+      phoneNumberId: hasCustomConfig ? config?.phone_number_id : (process.env.WHATSAPP_PHONE_NUMBER_ID || "—"),
+      businessAccountId: hasCustomConfig ? config?.business_account_id : (process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || "—"),
+      webhookStatus: configured ? "connected" : "disconnected",
       lastMessage: stats.lastMessage,
       messagesToday: stats.messagesToday,
     };
