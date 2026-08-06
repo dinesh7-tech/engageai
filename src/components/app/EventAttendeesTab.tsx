@@ -52,6 +52,7 @@ import {
   PartyPopper
 } from "lucide-react";
 import { toast } from "sonner";
+import { emitActivity } from "@/lib/realtime.functions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -306,7 +307,7 @@ function EventAttendeesContent({ activeEvent, attendees = [], ticketTiers = [], 
       });
       if (res.success && res.evaluation) {
         toast.success(`Evaluated ${at.name}: Score ${res.evaluation.score}/100`);
-        await supabase
+        await (supabase as any)
           .from("event_registrations")
           .update({
             ai_score: res.evaluation.score,
@@ -593,6 +594,7 @@ function EventAttendeesContent({ activeEvent, attendees = [], ticketTiers = [], 
       };
     } else {
       void stopCameraStream();
+      return undefined;
     }
   }, [scannerOpen]);
 

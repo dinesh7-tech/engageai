@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
+import { FieldType, formFieldSchema } from "./event-templates";
 
 const getAdminClient = async () => {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -68,36 +69,42 @@ export const createEvent = createServerFn({ method: "POST" })
     }
 
     try {
-      // 2. Insert Form Fields
-      if (data.defaultFields && data.defaultFields.length > 0) {
-        const fieldsToInsert = data.defaultFields.map((f, idx) => ({
+      // 2. Insert Form Fields with Zod runtime validation
+      const rawFields = (data.defaultFields && data.defaultFields.length > 0)
+        ? data.defaultFields
+        : [
+            { field_name: "name", field_label: "Full Name", field_type: FieldType.TEXT, required: true },
+            { field_name: "email", field_label: "Email Address", field_type: FieldType.EMAIL, required: true },
+            { field_name: "phone", field_label: "WhatsApp Mobile", field_type: FieldType.PHONE, required: true }
+          ];
+
+      const fieldsToInsert = rawFields.map((f, idx) => {
+        const parseResult = formFieldSchema.safeParse(f);
+        if (!parseResult.success) {
+          const allowedTypes = Object.values(FieldType).join(", ");
+          throw new Error(
+            `Invalid form field '${f.field_label || f.field_name || idx}': unsupported field_type '${f.field_type}'. Supported types are: ${allowedTypes}.`
+          );
+        }
+        return {
           workspace_id: data.workspaceId,
           event_id: event.id,
-          field_name: f.field_name,
-          field_label: f.field_label,
-          field_type: f.field_type,
-          required: f.required,
-          field_options: f.field_options || [],
-          conditional_rules: f.conditional_rules || [],
+          field_name: parseResult.data.field_name,
+          field_label: parseResult.data.field_label,
+          field_type: parseResult.data.field_type,
+          required: parseResult.data.required,
+          field_options: parseResult.data.field_options || [],
+          conditional_rules: parseResult.data.conditional_rules || [],
           sort_order: idx
-        }));
+        };
+      });
 
-        const { error: fieldsErr } = await supabaseAdmin
-          .from("event_form_fields")
-          .insert(fieldsToInsert);
+      const { error: fieldsErr } = await supabaseAdmin
+        .from("event_form_fields")
+        .insert(fieldsToInsert);
 
-        if (fieldsErr) {
-          throw fieldsErr;
-        }
-      } else {
-        // Default fallback contact fields
-        const fallbackFields = [
-          { workspace_id: data.workspaceId, event_id: event.id, field_name: "name", field_label: "Full Name", field_type: "text", required: true, sort_order: 0 },
-          { workspace_id: data.workspaceId, event_id: event.id, field_name: "email", field_label: "Email Address", field_type: "email", required: true, sort_order: 1 },
-          { workspace_id: data.workspaceId, event_id: event.id, field_name: "phone", field_label: "WhatsApp Mobile", field_type: "tel", required: true, sort_order: 2 }
-        ];
-        const { error: fallbackErr } = await supabaseAdmin.from("event_form_fields").insert(fallbackFields);
-        if (fallbackErr) throw fallbackErr;
+      if (fieldsErr) {
+        throw new Error(`Failed to insert form fields: ${fieldsErr.message}`);
       }
 
       // 3. Insert Default Ticket Tier

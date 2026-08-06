@@ -115,7 +115,7 @@ CREATE TABLE IF NOT EXISTS public.event_form_fields (
   event_id uuid NOT NULL REFERENCES public.events(id) ON DELETE CASCADE,
   field_name text NOT NULL,
   field_label text NOT NULL,
-  field_type text NOT NULL CHECK (field_type IN ('text', 'number', 'email', 'tel', 'select', 'textarea', 'checkbox')),
+  field_type text NOT NULL CHECK (field_type IN ('text', 'textarea', 'email', 'phone', 'tel', 'number', 'date', 'time', 'url', 'select', 'radio', 'checkbox', 'multiselect', 'file', 'rating', 'stars', 'emoji', 'yes_no')),
   required boolean NOT NULL DEFAULT false,
   field_options jsonb DEFAULT '[]'::jsonb, -- Options for select inputs
   conditional_rules jsonb DEFAULT '[]'::jsonb, -- Logic for conditional display

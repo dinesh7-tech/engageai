@@ -506,7 +506,7 @@ function PublicEventLanding() {
                       </div>
                     ) : (
                       <Input
-                        type={f.field_type}
+                        type={f.field_type === "phone" ? "tel" : f.field_type}
                         value={formValues[f.field_name] || ""}
                         onChange={(e) => handleInputChange(f.field_name, e.target.value)}
                         placeholder={`Enter your ${f.field_label.toLowerCase()}`}

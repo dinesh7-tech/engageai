@@ -53,7 +53,7 @@ import { useActiveWorkspace } from "@/hooks/useActiveWorkspace";
 import { supabase } from "@/integrations/supabase/client";
 import { createEvent, publishEvent, checkInAttendee, fetchEventAnalytics, registerAttendee, deleteEvent, duplicateEvent, updateEventDetails } from "@/lib/event.functions";
 import { endEventAndLaunchFeedback } from "@/lib/feedback.functions";
-import { builtInCategories, type CategoryPreset, type TemplatePreset } from "@/lib/event-templates";
+import { builtInCategories, FieldType, type CategoryPreset, type TemplatePreset } from "@/lib/event-templates";
 import { emitActivity } from "@/lib/realtime.functions";
 import { EventAttendeesTab } from "@/components/app/EventAttendeesTab";
 import { 
@@ -331,9 +331,9 @@ function EventAIPage() {
 
     try {
       const defaultFields = selectedTemplate?.default_form_fields || [
-        { field_name: "name", field_label: "Full Name", field_type: "text", required: true },
-        { field_name: "email", field_label: "Email Address", field_type: "email", required: true },
-        { field_name: "phone", field_label: "WhatsApp Mobile", field_type: "tel", required: true }
+        { field_name: "name", field_label: "Full Name", field_type: FieldType.TEXT, required: true },
+        { field_name: "email", field_label: "Email Address", field_type: FieldType.EMAIL, required: true },
+        { field_name: "phone", field_label: "WhatsApp Mobile", field_type: FieldType.PHONE, required: true }
       ];
 
       const defaultTickets = [
@@ -931,7 +931,7 @@ function EventAIPage() {
             <ChartCard
               title={activeEvent?.name || ""}
               subtitle={`${activeEvent?.venue || ""} · ${activeEvent?.status || ""}`}
-              actions={
+              action={
                 <div className="flex items-center gap-2">
                   {activeEvent.status !== "ended" && (
                     <Button
@@ -943,7 +943,7 @@ function EventAIPage() {
                           const res = await endEventAndLaunchFeedback({
                             data: {
                               eventId: activeEvent.id,
-                              workspaceId,
+                              workspaceId: workspaceId!,
                               audienceType: "approved"
                             }
                           });
