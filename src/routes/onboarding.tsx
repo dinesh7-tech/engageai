@@ -53,12 +53,22 @@ function OnboardingPage() {
 
   // Force authentication check on mount
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) {
         toast.error("Authentication required to access Setup Wizard");
         navigate({ to: "/auth" });
       } else {
-        setAuthChecking(false);
+        const { data: memberships } = await supabase
+          .from("workspace_members")
+          .select("workspace_id")
+          .eq("user_id", session.user.id)
+          .limit(1);
+
+        if (memberships && memberships.length > 0) {
+          navigate({ to: "/app" });
+        } else {
+          setAuthChecking(false);
+        }
       }
     });
   }, [navigate]);

@@ -82,30 +82,37 @@ function AuthPage() {
       return;
     }
     setLoading(true);
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: { full_name: fullName.trim() },
       },
     });
-    setLoading(false);
 
     if (error) {
+      setLoading(false);
       toast.error(error.message);
       return;
     }
-    toast.success("Account created");
-    
-    // Explicitly wait for session stabilization
-    let retries = 5;
-    while (retries > 0) {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) break;
-      await new Promise((r) => setTimeout(r, 200));
-      retries--;
+
+    // Try auto-login if session is not immediately available
+    let session = data?.session;
+    if (!session) {
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (signInError) {
+        setLoading(false);
+        toast.error("Account created, but could not login: " + signInError.message);
+        return;
+      }
+      session = signInData?.session;
     }
-    
+
+    setLoading(false);
+    toast.success("Account created successfully. Welcome to EngageAI.");
     navigate({ to: "/onboarding" });
   }
 
