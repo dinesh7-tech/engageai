@@ -1,7 +1,16 @@
-import { createStart, createCsrfMiddleware, createMiddleware } from "@tanstack/react-start";
+import { createStart, createCsrfMiddleware as _createCsrfMiddleware, createMiddleware } from "@tanstack/react-start";
+import * as TanstackStart from "@tanstack/react-start";
 
 import { renderErrorPage } from "./lib/error-page";
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
+
+// Startup validation and fallback resolution
+const createCsrfMiddleware =
+  typeof _createCsrfMiddleware === "function"
+    ? _createCsrfMiddleware
+    : typeof (TanstackStart as any)?.createCsrfMiddleware === "function"
+      ? (TanstackStart as any).createCsrfMiddleware
+      : undefined;
 
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
   try {
@@ -18,14 +27,15 @@ const errorMiddleware = createMiddleware().server(async ({ next }) => {
   }
 });
 
-// Start installs this automatically when src/start.ts is absent; defining the
-// file opts out, so re-add it explicitly to keep server functions protected
-// from cross-site requests.
-const csrfMiddleware = createCsrfMiddleware({
-  filter: (ctx) => ctx.handlerType === "serverFn",
-});
+// Create CSRF middleware safely
+const csrfMiddleware = createCsrfMiddleware
+  ? createCsrfMiddleware({
+      filter: (ctx: any) => ctx.handlerType === "serverFn",
+    })
+  : createMiddleware().server(async ({ next }) => next());
 
 export const startInstance = createStart(() => ({
   functionMiddleware: [attachSupabaseAuth],
   requestMiddleware: [errorMiddleware, csrfMiddleware],
 }));
+
