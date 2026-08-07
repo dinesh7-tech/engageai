@@ -16,15 +16,11 @@ export const Route = createFileRoute("/app")({
 function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { unreadCount: unread } = useRealtimeNotifications();
-  const { user, loading, isPasswordRecovery } = useAuth();
+  const { user, loading } = useAuth();
   const { activeWorkspace, loading: wsLoading } = useActiveWorkspace();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!loading && isPasswordRecovery) {
-      navigate({ to: "/reset-password" });
-      return;
-    }
     if (!loading && !user) {
       navigate({ to: "/auth" });
       return;
@@ -36,7 +32,7 @@ function AppLayout() {
     if (!loading && user && !wsLoading && !activeWorkspace) {
       navigate({ to: "/onboarding" });
     }
-  }, [user, loading, isPasswordRecovery, activeWorkspace, wsLoading, navigate]);
+  }, [user, loading, activeWorkspace, wsLoading, navigate]);
 
   if (loading || wsLoading || !user) {
     return (

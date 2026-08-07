@@ -457,8 +457,6 @@ function EventAttendeesContent({ activeEvent, attendees = [], ticketTiers = [], 
   const [torchOn, setTorchOn] = useState(false);
   const [cameraPaused, setCameraPaused] = useState(false);
   const html5QrcodeRef = useRef<Html5Qrcode | null>(null);
-  const lastScanTimeRef = useRef<{ payload: string; time: number }>({ payload: "", time: 0 });
-  const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null);
   const scannerContainerId = "real-html5-qr-reader";
 
   // Audio feedback synthesizer (No external audio file required)
@@ -532,7 +530,7 @@ function EventAttendeesContent({ activeEvent, attendees = [], ticketTiers = [], 
 
       const config = {
         fps: 15,
-        qrbox: { width: 240, height: 240 },
+        qrbox: { width: 220, height: 220 },
         aspectRatio: 1.0
       };
 
@@ -540,7 +538,7 @@ function EventAttendeesContent({ activeEvent, attendees = [], ticketTiers = [], 
         { facingMode },
         config,
         async (decodedText) => {
-          // Pause camera frame scanning immediately on detection
+          // Pause camera immediately on scan
           try {
             await html5QrCode.pause(true);
             setCameraPaused(true);
@@ -549,7 +547,7 @@ function EventAttendeesContent({ activeEvent, attendees = [], ticketTiers = [], 
           handleVerifyQRScan(decodedText);
         },
         () => {
-          // Continuous frame scanning
+          // Continuous frame scanning callback
         }
       );
       setCameraActive(true);
@@ -592,11 +590,9 @@ function EventAttendeesContent({ activeEvent, attendees = [], ticketTiers = [], 
       }, 300);
       return () => {
         clearTimeout(timer);
-        if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
         void stopCameraStream();
       };
     } else {
-      if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
       void stopCameraStream();
       return undefined;
     }
@@ -608,18 +604,8 @@ function EventAttendeesContent({ activeEvent, attendees = [], ticketTiers = [], 
       toast.error("Please enter or scan a valid QR ticket code.");
       return;
     }
-
-    // 12. Prevent duplicate scans within 3 seconds
-    const now = Date.now();
-    if (lastScanTimeRef.current.payload === code && (now - lastScanTimeRef.current.time) < 3000) {
-      console.log("Duplicate scan ignored within 3s window.");
-      return;
-    }
-    lastScanTimeRef.current = { payload: code, time: now };
-
     setScanning(true);
     setScanResult(null);
-
     try {
       const res = await checkInAttendeeByQR({
         data: {
@@ -631,15 +617,11 @@ function EventAttendeesContent({ activeEvent, attendees = [], ticketTiers = [], 
       setScanResult(res);
 
       if (res.status === "VALID") {
-        // 5. Stop camera immediately after successful scan
-        void stopCameraStream();
-
-        // 13. Trigger haptic vibration on mobile
-        if (typeof navigator !== "undefined" && navigator.vibrate) {
+        // Trigger haptic vibration on mobile
+        if (navigator.vibrate) {
           try { navigator.vibrate([100, 50, 100]); } catch (e) {}
         }
         playBeepSound("success");
-
         // Confetti celebration animation
         try {
           confetti({
@@ -649,24 +631,17 @@ function EventAttendeesContent({ activeEvent, attendees = [], ticketTiers = [], 
           });
         } catch (e) {}
 
-        toast.success(`✅ Check-in Successful: ${res.attendee.name}`);
+        toast.success(`✓ Checked In: ${res.attendee.name}`);
         onRefresh();
         void emitActivity({ data: { actor: "EventAI Real-time Scanner", text: `${res.attendee.name} checked in via camera scan` } });
-
-        // 11. Close scanner automatically after successful verification
-        if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
-        autoCloseTimerRef.current = setTimeout(() => {
-          setScannerOpen(false);
-        }, 2500);
-
       } else if (res.status === "ALREADY_CHECKED_IN") {
-        if (typeof navigator !== "undefined" && navigator.vibrate) {
+        if (navigator.vibrate) {
           try { navigator.vibrate([200]); } catch (e) {}
         }
         playBeepSound("warning");
         toast.info(res.message);
       } else {
-        if (typeof navigator !== "undefined" && navigator.vibrate) {
+        if (navigator.vibrate) {
           try { navigator.vibrate([300, 100, 300]); } catch (e) {}
         }
         playBeepSound("error");
@@ -676,7 +651,7 @@ function EventAttendeesContent({ activeEvent, attendees = [], ticketTiers = [], 
     } catch (err: any) {
       playBeepSound("error");
       toast.error(err.message || "QR Verification failed");
-      setScanResult({ status: "INVALID", message: err.message || "Invalid / Rejected Ticket" });
+      setScanResult({ status: "INVALID", message: err.message || "Invalid or unverified ticket QR code." });
     } finally {
       setScanning(false);
     }
@@ -1717,98 +1692,78 @@ function EventAttendeesContent({ activeEvent, attendees = [], ticketTiers = [], 
             {scanResult && (
               <AnimatePresence mode="wait">
                 <motion.div
-                  initial={{ opacity: 0, y: 12, scale: 0.96 }}
+                  initial={{ opacity: 0, y: 10, scale: 0.98 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.35, ease: "easeOut" }}
-                  className={`p-4 rounded-2xl border space-y-3.5 shadow-2xl ${
+                  className={`p-4 rounded-2xl border space-y-3 ${
                     scanResult.status === "VALID"
-                      ? "bg-emerald-500/15 border-emerald-500/50 text-emerald-200 shadow-emerald-500/20 ring-1 ring-emerald-500/30"
+                      ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-200 shadow-xl shadow-emerald-500/10"
                       : scanResult.status === "ALREADY_CHECKED_IN"
-                      ? "bg-amber-500/15 border-amber-500/50 text-amber-200 shadow-amber-500/20 ring-1 ring-amber-500/30"
+                      ? "bg-amber-500/15 border-amber-500/40 text-amber-200"
                       : scanResult.status === "PENDING"
-                      ? "bg-purple-500/15 border-purple-500/50 text-purple-200 shadow-purple-500/20"
-                      : "bg-rose-500/15 border-rose-500/50 text-rose-200 shadow-rose-500/20 ring-1 ring-rose-500/30"
+                      ? "bg-purple-500/15 border-purple-500/40 text-purple-200"
+                      : "bg-rose-500/15 border-rose-500/40 text-rose-200"
                   }`}
                 >
-                  {/* Status Banner Header */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
+                  {/* Status Banner */}
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2">
                       {scanResult.status === "VALID" ? (
-                        <div className="size-10 rounded-full bg-emerald-500/30 border border-emerald-400 flex items-center justify-center text-emerald-300 shadow-lg animate-bounce">
-                          <CheckCircle2 className="size-6 text-emerald-400" />
+                        <div className="size-9 rounded-full bg-emerald-500/30 border border-emerald-400 flex items-center justify-center text-emerald-300">
+                          <CheckCircle2 className="size-6 animate-pulse" />
                         </div>
                       ) : scanResult.status === "ALREADY_CHECKED_IN" ? (
-                        <div className="size-10 rounded-full bg-amber-500/30 border border-amber-400 flex items-center justify-center text-amber-300 shadow-lg">
-                          <AlertCircle className="size-6 text-amber-400" />
+                        <div className="size-9 rounded-full bg-amber-500/30 border border-amber-400 flex items-center justify-center text-amber-300">
+                          <Clock className="size-6" />
                         </div>
                       ) : (
-                        <div className="size-10 rounded-full bg-rose-500/30 border border-rose-400 flex items-center justify-center text-rose-300 shadow-lg">
-                          <XCircle className="size-6 text-rose-400" />
+                        <div className="size-9 rounded-full bg-rose-500/30 border border-rose-400 flex items-center justify-center text-rose-300">
+                          <XCircle className="size-6" />
                         </div>
                       )}
                       <div>
-                        <h4 className="text-base font-bold tracking-wide flex items-center gap-1.5">
+                        <h4 className="text-sm font-bold tracking-wide">
                           {scanResult.status === "VALID"
-                            ? "✅ Check-in Successful"
+                            ? "✓ Entry Approved — Checked In"
                             : scanResult.status === "ALREADY_CHECKED_IN"
-                            ? "⚠️ Already Checked In"
+                            ? "Already Checked In"
                             : scanResult.status === "PENDING"
-                            ? "⏳ Pending Approval"
-                            : "❌ Invalid / Rejected Ticket"}
+                            ? "Pending Approval"
+                            : scanResult.status === "REJECTED"
+                            ? "Registration Declined"
+                            : "Invalid Ticket QR"}
                         </h4>
                         <p className="text-xs opacity-90">{scanResult.message}</p>
                       </div>
                     </div>
 
-                    <Badge variant="outline" className={`text-[10px] font-mono uppercase px-2.5 py-0.5 rounded-full ${
-                      scanResult.status === "VALID" ? "bg-emerald-500/20 text-emerald-300 border-emerald-400/40" :
-                      scanResult.status === "ALREADY_CHECKED_IN" ? "bg-amber-500/20 text-amber-300 border-amber-400/40" :
-                      "bg-rose-500/20 text-rose-300 border-rose-400/40"
-                    }`}>
+                    <Badge variant="outline" className="text-[10px] font-mono uppercase">
                       {scanResult.status}
                     </Badge>
                   </div>
 
-                  {/* Attendee Profile Details Card */}
+                  {/* Attendee Details Card */}
                   {scanResult.attendee && (
-                    <div className="text-xs bg-zinc-950/80 p-3.5 rounded-2xl border border-white/10 space-y-2.5 font-sans">
-                      <div className="flex items-center gap-3">
-                        {/* Attendee Photo / Avatar */}
-                        {scanResult.attendee.form_responses?.photo || scanResult.attendee.avatar_url || scanResult.attendee.photo_url ? (
-                          <img
-                            src={scanResult.attendee.form_responses?.photo || scanResult.attendee.avatar_url || scanResult.attendee.photo_url}
-                            alt={scanResult.attendee.name}
-                            className="size-12 rounded-xl object-cover border border-white/20 shadow-md"
-                          />
-                        ) : (
-                          <div className={`size-12 rounded-xl flex items-center justify-center font-bold text-sm border border-white/10 ${getInitialColor(scanResult.attendee.name)}`}>
-                            {getInitials(scanResult.attendee.name)}
-                          </div>
-                        )}
-
-                        <div className="flex-1 min-w-0">
-                          <h5 className="text-sm font-bold text-foreground truncate">{scanResult.attendee.name}</h5>
-                          <p className="text-xs text-muted-foreground truncate">{scanResult.attendee.email || "No email registered"}</p>
-                        </div>
+                    <div className="text-xs bg-zinc-950/60 p-3 rounded-xl border border-white/10 space-y-1.5 font-sans">
+                      <div className="flex items-center justify-between font-semibold">
+                        <span className="text-muted-foreground">Attendee Name:</span>
+                        <span className="text-foreground font-bold text-sm">{scanResult.attendee.name}</span>
                       </div>
-
-                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/10 text-xs">
-                        <div className="bg-white/5 p-2 rounded-xl space-y-0.5">
-                          <span className="text-[10px] text-muted-foreground uppercase font-semibold block">Ticket Type</span>
-                          <span className="font-bold text-foreground text-xs truncate block">
-                            {ticketTiers?.find((t: any) => t.id === scanResult.attendee.ticket_type_id)?.name || "Standard Pass"}
-                          </span>
+                      {scanResult.attendee.email && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Email:</span>
+                          <span className="text-zinc-300">{scanResult.attendee.email}</span>
                         </div>
-
-                        <div className="bg-white/5 p-2 rounded-xl space-y-0.5">
-                          <span className="text-[10px] text-muted-foreground uppercase font-semibold block">Check-in Time</span>
-                          <span className="font-bold text-foreground text-xs truncate block">
-                            {scanResult.attendee.checked_in_at
-                              ? new Date(scanResult.attendee.checked_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-                              : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                          </span>
+                      )}
+                      {scanResult.attendee.form_responses?.college && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Institution:</span>
+                          <span className="text-zinc-300">{scanResult.attendee.form_responses.college}</span>
                         </div>
+                      )}
+                      <div className="flex items-center justify-between font-mono text-[10px] pt-1 border-t border-white/5">
+                        <span className="text-muted-foreground">Ticket Token:</span>
+                        <span className="text-indigo-300">{scanResult.attendee.ticket_token}</span>
                       </div>
                     </div>
                   )}

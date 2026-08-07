@@ -19,7 +19,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { FadeUp, Stagger, Magnetic } from "@/components/motion/primitives";
-import heroDashboard from "@/assets/hero-dashboard.jpeg";
+import heroDashboard from "@/assets/hero-dashboard.jpg";
 
 import heroVideo from "@/assets/hero-loop.mp4";
 
