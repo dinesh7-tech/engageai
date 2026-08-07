@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as AppAnalyticsRouteImport } from './routes/app.analytics'
@@ -32,6 +33,7 @@ import { Route as FTokenRouteImport } from './routes/f.$token'
 import { Route as JoinSlugRouteImport } from './routes/join.$slug'
 import { Route as PublicSlugRouteImport } from './routes/public.$slug'
 import { Route as TicketTokenRouteImport } from './routes/ticket.$token'
+import { Route as ApiEventsCheckinRouteImport } from './routes/api.events.checkin'
 import { Route as ApiWebhooksWhatsappRouteImport } from './routes/api.webhooks.whatsapp'
 
 const IndexRoute = IndexRouteImport.update({
@@ -52,6 +54,11 @@ const AuthRoute = AuthRouteImport.update({
 const OnboardingRoute = OnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const VerifyEmailRoute = VerifyEmailRouteImport.update({
@@ -149,6 +156,11 @@ const TicketTokenRoute = TicketTokenRouteImport.update({
   path: '/ticket/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiEventsCheckinRoute = ApiEventsCheckinRouteImport.update({
+  id: '/api/events/checkin',
+  path: '/api/events/checkin',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiWebhooksWhatsappRoute = ApiWebhooksWhatsappRouteImport.update({
   id: '/api/webhooks/whatsapp',
   path: '/api/webhooks/whatsapp',
@@ -160,6 +172,7 @@ export interface FileRoutesByFullPath {
   '/app': typeof AppRouteWithChildren
   '/auth': typeof AuthRoute
   '/onboarding': typeof OnboardingRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
   '/app/analytics': typeof AppAnalyticsRoute
   '/app/automation': typeof AppAutomationRoute
@@ -179,12 +192,14 @@ export interface FileRoutesByFullPath {
   '/public/$slug': typeof PublicSlugRoute
   '/ticket/$token': typeof TicketTokenRoute
   '/app/': typeof AppIndexRoute
+  '/api/events/checkin': typeof ApiEventsCheckinRoute
   '/api/webhooks/whatsapp': typeof ApiWebhooksWhatsappRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/onboarding': typeof OnboardingRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
   '/app/analytics': typeof AppAnalyticsRoute
   '/app/automation': typeof AppAutomationRoute
@@ -204,6 +219,7 @@ export interface FileRoutesByTo {
   '/public/$slug': typeof PublicSlugRoute
   '/ticket/$token': typeof TicketTokenRoute
   '/app': typeof AppIndexRoute
+  '/api/events/checkin': typeof ApiEventsCheckinRoute
   '/api/webhooks/whatsapp': typeof ApiWebhooksWhatsappRoute
 }
 export interface FileRoutesById {
@@ -212,6 +228,7 @@ export interface FileRoutesById {
   '/app': typeof AppRouteWithChildren
   '/auth': typeof AuthRoute
   '/onboarding': typeof OnboardingRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
   '/app/analytics': typeof AppAnalyticsRoute
   '/app/automation': typeof AppAutomationRoute
@@ -231,6 +248,7 @@ export interface FileRoutesById {
   '/public/$slug': typeof PublicSlugRoute
   '/ticket/$token': typeof TicketTokenRoute
   '/app/': typeof AppIndexRoute
+  '/api/events/checkin': typeof ApiEventsCheckinRoute
   '/api/webhooks/whatsapp': typeof ApiWebhooksWhatsappRoute
 }
 export interface FileRouteTypes {
@@ -240,6 +258,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/auth'
     | '/onboarding'
+    | '/reset-password'
     | '/verify-email'
     | '/app/analytics'
     | '/app/automation'
@@ -259,12 +278,14 @@ export interface FileRouteTypes {
     | '/public/$slug'
     | '/ticket/$token'
     | '/app/'
+    | '/api/events/checkin'
     | '/api/webhooks/whatsapp'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/auth'
     | '/onboarding'
+    | '/reset-password'
     | '/verify-email'
     | '/app/analytics'
     | '/app/automation'
@@ -284,6 +305,7 @@ export interface FileRouteTypes {
     | '/public/$slug'
     | '/ticket/$token'
     | '/app'
+    | '/api/events/checkin'
     | '/api/webhooks/whatsapp'
   id:
     | '__root__'
@@ -291,6 +313,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/auth'
     | '/onboarding'
+    | '/reset-password'
     | '/verify-email'
     | '/app/analytics'
     | '/app/automation'
@@ -310,6 +333,7 @@ export interface FileRouteTypes {
     | '/public/$slug'
     | '/ticket/$token'
     | '/app/'
+    | '/api/events/checkin'
     | '/api/webhooks/whatsapp'
   fileRoutesById: FileRoutesById
 }
@@ -318,12 +342,14 @@ export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   AuthRoute: typeof AuthRoute
   OnboardingRoute: typeof OnboardingRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
   ESlugRoute: typeof ESlugRoute
   FTokenRoute: typeof FTokenRoute
   JoinSlugRoute: typeof JoinSlugRoute
   PublicSlugRoute: typeof PublicSlugRoute
   TicketTokenRoute: typeof TicketTokenRoute
+  ApiEventsCheckinRoute: typeof ApiEventsCheckinRoute
   ApiWebhooksWhatsappRoute: typeof ApiWebhooksWhatsappRoute
 }
 
@@ -355,6 +381,13 @@ declare module '@tanstack/react-router' {
       path: '/onboarding'
       fullPath: '/onboarding'
       preLoaderRoute: typeof OnboardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/verify-email': {
@@ -490,6 +523,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TicketTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/events/checkin': {
+      id: '/api/events/checkin'
+      path: '/api/events/checkin'
+      fullPath: '/api/events/checkin'
+      preLoaderRoute: typeof ApiEventsCheckinRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/webhooks/whatsapp': {
       id: '/api/webhooks/whatsapp'
       path: '/api/webhooks/whatsapp'
@@ -539,12 +579,14 @@ const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   AuthRoute: AuthRoute,
   OnboardingRoute: OnboardingRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   VerifyEmailRoute: VerifyEmailRoute,
   ESlugRoute: ESlugRoute,
   FTokenRoute: FTokenRoute,
   JoinSlugRoute: JoinSlugRoute,
   PublicSlugRoute: PublicSlugRoute,
   TicketTokenRoute: TicketTokenRoute,
+  ApiEventsCheckinRoute: ApiEventsCheckinRoute,
   ApiWebhooksWhatsappRoute: ApiWebhooksWhatsappRoute,
 }
 export const routeTree = rootRouteImport

@@ -29,10 +29,15 @@ function AuthPage() {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
 
-  // Redirect if already logged in
+  // Redirect if already logged in (unless password recovery active)
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (data.user) {
+    if (typeof window !== "undefined" && window.location.hash.includes("type=recovery")) {
+      navigate({ to: "/reset-password" });
+      return;
+    }
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session?.user && !window.location.hash.includes("type=recovery")) {
         checkWorkspaceAndRedirect();
       }
     });
@@ -41,6 +46,7 @@ function AuthPage() {
   async function checkWorkspaceAndRedirect() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
+    if (typeof window !== "undefined" && window.location.hash.includes("type=recovery")) return;
 
     // MANDATORY EMAIL VERIFICATION CHECK
     if (!user.email_confirmed_at) {
@@ -125,14 +131,28 @@ function AuthPage() {
 
   async function handleReset() {
     if (!email.includes("@")) {
-      toast.error("Enter a valid email");
+      toast.error("Enter a valid email address");
       return;
     }
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
-    if (error) {
-      toast.error(error.message);
-    } else {
-      toast.success(`Reset link sent to ${email}`);
+    setLoading(true);
+    try {
+      const redirectUrl = typeof window !== "undefined"
+        ? `${window.location.origin}/reset-password`
+        : "https://engageai-gold.vercel.app/reset-password";
+
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: redirectUrl
+      });
+
+      setLoading(false);
+      if (error) {
+        toast.error(error.message);
+      } else {
+        toast.success("We've sent a password reset link to your email.");
+      }
+    } catch (err: any) {
+      setLoading(false);
+      toast.error(err.message || "Failed to send reset email");
     }
   }
 

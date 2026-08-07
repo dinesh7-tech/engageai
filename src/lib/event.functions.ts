@@ -1,11 +1,18 @@
 import { createServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { FieldType, formFieldSchema } from "./event-templates";
+import crypto from "node:crypto";
 
 const getAdminClient = async () => {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   return supabaseAdmin as any;
 };
+
+export function generateQRPayloadSignature(params: { eventId: string; registrationId: string; attendeeId: string; ticketId: string }): string {
+  const secret = process.env["QR_SECRET"] || process.env["SUPABASE_SERVICE_ROLE_KEY"] || "eventai_qr_secret_key_2026";
+  const dataStr = `${params.eventId}:${params.registrationId}:${params.attendeeId}:${params.ticketId}`;
+  return crypto.createHmac("sha256", secret).update(dataStr).digest("hex").slice(0, 32);
+}
 
 // Cryptographically secure or simple random token generator for tickets
 function generateTicketToken(): string {
@@ -889,14 +896,38 @@ export const getRegistrationByToken = createServerFn({ method: "GET" })
     const supabaseAdmin = await getAdminClient();
     const { data: reg, error } = await supabaseAdmin
       .from("event_registrations")
-      .select("*")
+      .select("*, events(name, date, venue)")
       .eq("ticket_token", data.token)
       .maybeSingle();
 
     if (error) {
       throw new Error(`Failed to retrieve registration: ${error.message}`);
     }
-    return reg;
+    if (!reg) return null;
+
+    const signature = generateQRPayloadSignature({
+      eventId: reg.event_id,
+      registrationId: reg.id,
+      attendeeId: reg.id,
+      ticketId: reg.ticket_type_id || "general"
+    });
+
+    const qrPayloadObj = {
+      eventId: reg.event_id,
+      registrationId: reg.id,
+      attendeeId: reg.id,
+      ticketId: reg.ticket_type_id || "general",
+      signature,
+      secureSignature: signature,
+      token: reg.ticket_token,
+      timestamp: Date.now(),
+      exp: reg.events?.date ? new Date(reg.events.date).getTime() + 86400000 * 7 : Date.now() + 86400000 * 30
+    };
+
+    return {
+      ...reg,
+      qr_payload_json: JSON.stringify(qrPayloadObj)
+    };
   });
 
 export const updateRegistrationByToken = createServerFn({ method: "POST" })
@@ -980,6 +1011,8 @@ export const checkInAttendeeByQR = createServerFn({ method: "POST" })
     let ticketToken = data.qrPayload.trim();
     let registrationId: string | null = null;
     let payloadEventId: string | null = null;
+    let payloadSignature: string | null = null;
+    let payloadExp: number | null = null;
     let checksum: string | null = null;
 
     try {
@@ -989,10 +1022,21 @@ export const checkInAttendeeByQR = createServerFn({ method: "POST" })
         if (payload.registrationId) registrationId = payload.registrationId;
         if (payload.attendeeId) registrationId = payload.attendeeId;
         if (payload.eventId) payloadEventId = payload.eventId;
+        if (payload.signature) payloadSignature = payload.signature;
+        if (payload.secureSignature) payloadSignature = payload.secureSignature;
+        if (payload.exp) payloadExp = Number(payload.exp);
         if (payload.checksum) checksum = payload.checksum;
       }
     } catch (e) {
       // Plain text token fallback
+    }
+
+    // Verify QR expiration if present
+    if (payloadExp && Date.now() > payloadExp) {
+      return {
+        status: "INVALID",
+        message: "Expired QR Code: This ticket pass has expired."
+      };
     }
 
     // Verify Event mismatch if embedded in payload
@@ -1020,8 +1064,24 @@ export const checkInAttendeeByQR = createServerFn({ method: "POST" })
     if (fetchErr || !reg) {
       return {
         status: "INVALID",
-        message: "Invalid Ticket: No registration found for this QR token."
+        message: "Invalid Ticket: No registration found for this QR payload."
       };
+    }
+
+    // Verify HMAC signature if payload signature is present
+    if (payloadSignature) {
+      const expectedSig = generateQRPayloadSignature({
+        eventId: reg.event_id,
+        registrationId: reg.id,
+        attendeeId: reg.id,
+        ticketId: reg.ticket_type_id || "general"
+      });
+      if (payloadSignature !== expectedSig) {
+        return {
+          status: "INVALID",
+          message: "Tampered QR Code: Signature verification failed."
+        };
+      }
     }
 
     // Verify Checksum if present
@@ -1039,7 +1099,7 @@ export const checkInAttendeeByQR = createServerFn({ method: "POST" })
     if (reg.status === "Pending") {
       return {
         status: "PENDING",
-        message: "Pending Approval: This ticket is awaiting organizer approval.",
+        message: "Pending Approval: Ticket is awaiting organizer approval.",
         attendee: reg
       };
     }
@@ -1047,7 +1107,7 @@ export const checkInAttendeeByQR = createServerFn({ method: "POST" })
     if (reg.status === "Rejected") {
       return {
         status: "REJECTED",
-        message: "Registration Declined: This ticket has been rejected and disabled.",
+        message: "Registration Declined: Ticket has been rejected and disabled.",
         attendee: reg
       };
     }
@@ -1055,7 +1115,7 @@ export const checkInAttendeeByQR = createServerFn({ method: "POST" })
     if (reg.checked_in || reg.status === "Checked-in") {
       return {
         status: "ALREADY_CHECKED_IN",
-        message: `Already Checked-in: ${reg.name} was checked in on ${reg.checked_in_at ? new Date(reg.checked_in_at).toLocaleTimeString() : 'earlier'}.`,
+        message: `Already Checked In: ${reg.name} was checked in on ${reg.checked_in_at ? new Date(reg.checked_in_at).toLocaleTimeString() : 'earlier'}.`,
         attendee: reg,
         alreadyCheckedIn: true
       };
