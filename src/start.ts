@@ -1,16 +1,7 @@
-import { createStart, createCsrfMiddleware as _createCsrfMiddleware, createMiddleware } from "@tanstack/react-start";
-import * as TanstackStart from "@tanstack/react-start";
+import { createStart, createMiddleware } from "@tanstack/react-start";
 
 import { renderErrorPage } from "./lib/error-page";
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
-
-// Startup validation and fallback resolution
-const createCsrfMiddleware =
-  typeof _createCsrfMiddleware === "function"
-    ? _createCsrfMiddleware
-    : typeof (TanstackStart as any)?.createCsrfMiddleware === "function"
-      ? (TanstackStart as any).createCsrfMiddleware
-      : undefined;
 
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
   try {
@@ -27,15 +18,24 @@ const errorMiddleware = createMiddleware().server(async ({ next }) => {
   }
 });
 
-// Create CSRF middleware safely
-const csrfMiddleware = createCsrfMiddleware
-  ? createCsrfMiddleware({
-      filter: (ctx: any) => ctx.handlerType === "serverFn",
-    })
-  : createMiddleware().server(async ({ next }) => next());
+// CSRF / Same-origin request check using standard TanStack Start middleware
+const csrfMiddleware = createMiddleware().server(async ({ next, request }) => {
+  if (request) {
+    const origin = request.headers.get("origin");
+    const host = request.headers.get("host");
+    if (origin && host && !origin.includes(host)) {
+      const secFetchSite = request.headers.get("sec-fetch-site");
+      if (secFetchSite === "cross-site") {
+        return new Response("Forbidden", { status: 403 });
+      }
+    }
+  }
+  return await next();
+});
 
 export const startInstance = createStart(() => ({
   functionMiddleware: [attachSupabaseAuth],
   requestMiddleware: [errorMiddleware, csrfMiddleware],
 }));
+
 
